@@ -36,6 +36,26 @@ test("같은 기기 2인 협동 전투와 새로고침 저장", async ({ page },
   await expect(page.getByText("오늘의 생각을 이 기기에 보관했어.")).toBeVisible();
   await page.reload();
   await expect(page.locator("textarea")).toHaveValue("두 드래곤이 합쳐질 때가 멋졌어!");
+  await page.goto("/parent/observation");
+  await expect(page.getByRole("heading", { name: "2인 모험 관찰 기록" })).toBeVisible();
+  await expect(page.getByText("게임이 자동 기록한 협력 행동")).toBeVisible();
+  await page.locator('input[name="turnClarity"][value="4"]').check();
+  await page.locator('input[name="waitComfort"][value="4"]').check();
+  await page.getByRole("radio", { name: "분명히 있었음" }).check();
+  await page.locator('input[name="specialSatisfaction"][value="5"]').check();
+  await page.getByRole("checkbox", { name: /다시 하자/ }).check();
+  await page.getByPlaceholder(/친구 차례에는/).fill("차례를 스스로 넘기고 합동 스킬에서 함께 웃었음");
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(300);
+  await page.screenshot({
+    path: path.join(process.cwd(), "output", "playwright", `coop-observation-${testInfo.project.name}.png`),
+    fullPage: testInfo.project.name !== "mobile-360",
+  });
+  await page.getByRole("button", { name: "관찰 기록 저장" }).click();
+  await expect(page.getByText("이 기기에 관찰 기록을 저장했습니다.")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.reload();
+  await expect(page.getByPlaceholder(/친구 차례에는/)).toHaveValue("차례를 스스로 넘기고 합동 스킬에서 함께 웃었음");
 });
 
 test("1인 전투는 플레이어 한 명의 필살기로 끝난다", async ({ page }) => {

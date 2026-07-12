@@ -30,6 +30,16 @@ export type CoopPlayer = {
   ready: boolean;
 };
 
+export type CoopMetrics = {
+  jointMissionsCompleted: number;
+  hintsShared: number;
+  explanationsShared: number;
+  retries: number;
+  specialActivations: number;
+  waitedTurns: number;
+  roleChanges: number;
+};
+
 export type CoopBattleState = {
   mode: "local-shared-screen" | "online-room";
   players: CoopPlayer[];
@@ -49,6 +59,7 @@ export type CoopBattleState = {
   message: string;
   shakeIntensity: 0 | 1 | 2;
   soundVolume: number;
+  coopMetrics: CoopMetrics;
 };
 
 export type CoopMissionType =

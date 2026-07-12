@@ -1,4 +1,4 @@
-import type { AdventureRecord, ParentSettings, StoredGameData } from "@/types/progress";
+import type { AdventureRecord, CoopObservationRecord, ParentSettings, StoredGameData } from "@/types/progress";
 
 export const STORAGE_KEY = "minz-learning-game";
 
@@ -20,7 +20,7 @@ export const DEFAULT_SETTINGS: ParentSettings = {
 
 export function createDefaultGameData(): StoredGameData {
   return {
-    version: 1,
+    version: 2,
     playerProfile: { displayName: "민표", grade: 2 },
     parentSettings: DEFAULT_SETTINGS,
     battleProgress: { lastPhase: "INTRO" },
@@ -35,15 +35,16 @@ export function createDefaultGameData(): StoredGameData {
     coopBattleHistory: [],
     teamRewards: [],
     unlockedTeamSkills: [],
+    observationRecords: [],
   };
 }
 
 export function parseStoredGameData(raw: string | null): StoredGameData {
   if (!raw) return createDefaultGameData();
   try {
-    const parsed = JSON.parse(raw) as Partial<StoredGameData>;
-    if (parsed.version !== 1) return createDefaultGameData();
-    return { ...createDefaultGameData(), ...parsed };
+    const parsed = JSON.parse(raw) as Partial<Omit<StoredGameData, "version">> & { version?: number };
+    if (parsed.version !== 1 && parsed.version !== 2) return createDefaultGameData();
+    return { ...createDefaultGameData(), ...parsed, version: 2 };
   } catch {
     return createDefaultGameData();
   }
@@ -111,6 +112,19 @@ export function saveThought(recordId: string, text: string): StoredGameData {
     rewardHistory: current.rewardHistory.map(updateRecord),
     playHistory: current.playHistory.map(updateRecord),
     coopBattleHistory: current.coopBattleHistory.map(updateRecord),
+  };
+  writeGameData(next);
+  return next;
+}
+
+export function saveObservation(record: CoopObservationRecord): StoredGameData {
+  const current = readGameData();
+  const next = {
+    ...current,
+    observationRecords: [
+      ...current.observationRecords.filter((item) => item.adventureId !== record.adventureId),
+      record,
+    ],
   };
   writeGameData(next);
   return next;

@@ -1,4 +1,4 @@
-import type { BattleMode, PlayerRole } from "./battle";
+import type { BattleMode, CoopMetrics, PlayerRole } from "./battle";
 
 export type ParentSettings = {
   playerName: string;
@@ -29,10 +29,25 @@ export type AdventureRecord = {
   badges: string[];
   teamRewards: string[];
   thought?: string;
+  coopMetrics?: CoopMetrics;
+};
+
+export type ObservationRating = 1 | 2 | 3 | 4 | 5;
+
+export type CoopObservationRecord = {
+  id: string;
+  adventureId: string;
+  observedAt: string;
+  turnClarity: ObservationRating;
+  waitComfort: ObservationRating;
+  helpOccurred: "yes" | "partly" | "no";
+  specialSatisfaction: ObservationRating;
+  askedToReplay: boolean;
+  notes: string;
 };
 
 export type StoredGameData = {
-  version: 1;
+  version: 2;
   playerProfile: { displayName: string; grade: number };
   parentSettings: ParentSettings;
   battleProgress: { lastPhase: string; lastPlayedAt?: string };
@@ -47,4 +62,5 @@ export type StoredGameData = {
   coopBattleHistory: AdventureRecord[];
   teamRewards: string[];
   unlockedTeamSkills: string[];
+  observationRecords: CoopObservationRecord[];
 };

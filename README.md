@@ -28,7 +28,8 @@ npm run test:e2e
 3. `/battle`에서 10칸 틀 조작 → 각자 암호 → 심화 작전 → 필살기를 진행합니다.
 4. `/result`에서 보상과 오늘의 생각을 저장합니다.
 5. `/parent`에서 비교 없는 시도·힌트·협동 기록을 확인합니다.
+6. 실제 2인 세션 뒤 `/parent/observation`에서 협동 UX 관찰지를 저장합니다.
 
-데이터는 버전 필드를 포함해 브라우저 `localStorage`에만 저장됩니다. 외부 AI API, 계정, 결제, 광고, 공개 채팅, 온라인 서버는 연결하지 않습니다.
+데이터는 마이그레이션 가능한 버전 필드를 포함해 브라우저 `localStorage`에만 저장됩니다. 외부 AI API, 계정, 결제, 광고, 공개 채팅, 온라인 서버는 연결하지 않습니다.
 
 상세 설계는 [docs/minz-learning-game](./docs/minz-learning-game)에서 확인할 수 있습니다.

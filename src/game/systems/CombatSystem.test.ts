@@ -32,6 +32,9 @@ describe("CombatSystem", () => {
     expect(state.teamLinkGauge).toBe(100);
     expect(state.specialSkillReady).toBe(true);
     expect(state.battlePhase).toBe("SPECIAL_READY");
+    expect(state.coopMetrics.jointMissionsCompleted).toBe(1);
+    expect(state.coopMetrics.explanationsShared).toBe(1);
+    expect(state.coopMetrics.waitedTurns).toBe(2);
   });
 
   it("한 명의 어려움이 팀 링크를 깎지 않는다", () => {
@@ -39,5 +42,14 @@ describe("CombatSystem", () => {
     const retried = battleReducer(state, { type: "ANSWER_RETRY" });
     expect(retried.teamLinkGauge).toBe(50);
     expect(retried.players[0].hp).toBe(100);
+    expect(retried.coopMetrics.retries).toBe(1);
+  });
+
+  it("도움 단서와 합동 스킬을 협력 행동으로 기록한다", () => {
+    let state = createBattleState({ ...DEFAULT_SETTINGS, mode: "local-shared-screen" });
+    state = battleReducer(state, { type: "USE_HINT" });
+    state = battleReducer(state, { type: "SPECIAL_COMPLETE" });
+    expect(state.coopMetrics.hintsShared).toBe(1);
+    expect(state.coopMetrics.specialActivations).toBe(1);
   });
 });

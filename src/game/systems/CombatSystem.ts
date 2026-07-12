@@ -61,6 +61,15 @@ export function createBattleState(settings: ParentSettings): CoopBattleState {
     message: coop ? "쌍둥이 숫자 슬라임이 합체했어!" : "숫자 슬라임이 길을 막았어!",
     shakeIntensity: settings.shakeIntensity,
     soundVolume: settings.soundVolume,
+    coopMetrics: {
+      jointMissionsCompleted: 0,
+      hintsShared: 0,
+      explanationsShared: 0,
+      retries: 0,
+      specialActivations: 0,
+      waitedTurns: 0,
+      roleChanges: 0,
+    },
   };
 }
 
@@ -107,6 +116,9 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
         battlePhase: "PLAYER_ANSWER",
         pendingCoopMissionId: isCoop ? "friend-remaining-number" : "solo-application",
         completedMissionIds: [...state.completedMissionIds, "move-block-1"],
+        coopMetrics: isCoop
+          ? { ...state.coopMetrics, waitedTurns: state.coopMetrics.waitedTurns + 1 }
+          : state.coopMetrics,
         message: isCoop ? `${players[1].displayName} 차례 · 남은 불꽃 암호를 찾아 줘!` : "보호막이 깨졌어! 이제 번개 암호를 풀어 보자.",
       };
     }
@@ -134,6 +146,10 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
           battlePhase: "SPECIAL_CHALLENGE",
           pendingCoopMissionId: "deep-1",
           completedMissionIds: [...state.completedMissionIds, action.missionId],
+          coopMetrics: {
+            ...state.coopMetrics,
+            waitedTurns: state.coopMetrics.waitedTurns + 1,
+          },
           message: "함께 작전 세우기 · 서로 다른 두 길을 찾아 보자!",
         };
       }
@@ -168,6 +184,13 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
         specialSkillReady: specialReady(state, chargedPlayers, chargedTeamGauge, true) || ready,
         battlePhase: "SPECIAL_READY",
         completedMissionIds: [...state.completedMissionIds, action.missionId],
+        coopMetrics: players.length === 2
+          ? {
+              ...state.coopMetrics,
+              jointMissionsCompleted: state.coopMetrics.jointMissionsCompleted + 1,
+              explanationsShared: state.coopMetrics.explanationsShared + 1,
+            }
+          : state.coopMetrics,
         message: players.length === 2 ? "합동 스킬 준비! 양쪽에서 힘을 모아 줘." : "민즈 썬더 드래곤 브레이크 준비 완료!",
       };
     }
@@ -181,6 +204,9 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
         attemptCount,
         retryCount: state.retryCount + 1,
         teamLinkGauge: state.players.length === 2 ? state.teamLinkGauge : 0,
+        coopMetrics: state.players.length === 2
+          ? { ...state.coopMetrics, retries: state.coopMetrics.retries + 1 }
+          : state.coopMetrics,
         message: attemptCount === 1
           ? "숫자 슬라임이 공격을 막았어! 다른 작전을 사용해 보자."
           : "동료가 보호막을 펼쳤어. 힌트로 약점을 찾아 보자!",
@@ -191,6 +217,9 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
         ...state,
         hintCount: state.hintCount + 1,
         teamLinkGauge: state.players.length === 2 ? clamp(state.teamLinkGauge + 10) : 0,
+        coopMetrics: state.players.length === 2
+          ? { ...state.coopMetrics, hintsShared: state.coopMetrics.hintsShared + 1 }
+          : state.coopMetrics,
         message: "8에 2를 더하면 10이 돼. 7에서 2를 옮기면 5가 남아.",
       };
     case "SPECIAL_CHALLENGE_SUCCESS":
@@ -217,6 +246,9 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
         bossHp: 0,
         bossShield: 0,
         battlePhase: "RESULT",
+        coopMetrics: state.players.length === 2
+          ? { ...state.coopMetrics, specialActivations: state.coopMetrics.specialActivations + 1 }
+          : state.coopMetrics,
         message: "숫자 보스의 약점을 발견했어! 모험 완료!",
       };
     default:

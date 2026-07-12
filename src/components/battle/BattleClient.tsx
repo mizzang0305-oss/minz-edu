@@ -62,6 +62,7 @@ export function BattleClient() {
       coins: coop ? 60 : 35,
       badges: ["10 만들기 개념 조각", ...(battle.retryCount > 0 ? ["다시 도전 용기 배지"] : [])],
       teamRewards: coop ? ["우정 코인", "합동 스킬 조각", "쌍둥이 숫자 슬라임 트로피"] : [],
+      coopMetrics: coop ? battle.coopMetrics : undefined,
     };
     saveAdventure(record);
   }, [battle]);
