@@ -192,3 +192,17 @@ Firebase Console의 현재 Chrome 계정은 Firestore 관리 화면 권한이 �
 - 비교 결과: 불일치, 운영 배포 없음
 
 로컬 후보에는 보호자 이름 검증, 안전한 `characterId` 형식, 자녀 프로필의 `friendCode`·`createdAt` 불변성, 명령 ID·payload 크기 제한을 추가했다. Firestore/방 Emulator 테스트 15개가 통과했으며, 별도 배포 승인 전까지 운영 ruleset은 변경하지 않는다.
+
+## Firestore 규칙 배포 완료 — 2026-07-13
+
+- 대상 프로젝트: `studymate-ai-v2`
+- 배포 범위: `firestore:rules`만 배포
+- 새 활성 ruleset: `projects/studymate-ai-v2/rulesets/c1190347-02f8-4781-a4b7-6bb9d9253e22`
+- release 갱신 시각: `2026-07-13T12:27:02.640319Z`
+- 원격·로컬 정규화 SHA-256: `2fa6f420b2b6b95e379df1b8ee7218ef688773e8540f8749f6eb6415cf09525a`
+- 배포 후 프로필 재집계: 전체 1, 유아 0, 초등 1, 중등 0, 누락·기타 0
+- 검증 결과: 원격·로컬 규칙 일치, `middle == 0`
+
+배포 전 전체 테스트 66개, Firestore/방 Emulator 테스트 15개, `typecheck`, `lint`, 프로덕션 빌드가 통과했다. 브라우저 E2E는 PC·태블릿·휴대폰 24개 중 22개가 통과하고 기기 조건부 테스트 2개가 스킵됐으며 실패는 없었다. 프로필 데이터·인덱스·Auth·Storage·Functions는 변경하지 않았다.
+
+롤백 기준은 직전 ruleset `projects/studymate-ai-v2/rulesets/f469656f-c85b-4afe-b85a-e7741ef379ad`이다. 규칙 접근 오류가 확인되면 이 ruleset을 `cloud.firestore` release에 다시 연결한다.
