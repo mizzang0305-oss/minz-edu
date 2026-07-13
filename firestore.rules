@@ -34,13 +34,16 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           'displayName', 'childProfileIds', 'updatedAt'
         ])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 1
+        && request.resource.data.displayName.size() <= 50
         && request.resource.data.childProfileIds is list
         && request.resource.data.childProfileIds.size() <= 10;
       allow delete: if false;
 
       match /children/{childId} {
         allow read: if isGuardian(guardianId);
-        allow create, update: if isGuardian(guardianId)
+        allow create: if isGuardian(guardianId)
           && request.resource.data.keys().hasOnly([
             'displayName', 'schoolLevel', 'grade', 'characterId', 'friendCode',
             'createdAt', 'updatedAt'
@@ -49,8 +52,27 @@ service cloud.firestore {
           && request.resource.data.displayName.size() >= 1
           && request.resource.data.displayName.size() <= 20
           && validLearningStage(request.resource.data.schoolLevel, request.resource.data.grade)
+          && request.resource.data.characterId is string
+          && request.resource.data.characterId.size() >= 1
+          && request.resource.data.characterId.size() <= 40
+          && request.resource.data.characterId.matches('^[a-z0-9]+(-[a-z0-9]+)*$')
           && request.resource.data.friendCode is string
           && request.resource.data.friendCode.size() == 8;
+        allow update: if isGuardian(guardianId)
+          && request.resource.data.keys().hasOnly([
+            'displayName', 'schoolLevel', 'grade', 'characterId', 'friendCode',
+            'createdAt', 'updatedAt'
+          ])
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() >= 1
+          && request.resource.data.displayName.size() <= 20
+          && validLearningStage(request.resource.data.schoolLevel, request.resource.data.grade)
+          && request.resource.data.characterId is string
+          && request.resource.data.characterId.size() >= 1
+          && request.resource.data.characterId.size() <= 40
+          && request.resource.data.characterId.matches('^[a-z0-9]+(-[a-z0-9]+)*$')
+          && request.resource.data.friendCode == resource.data.friendCode
+          && request.resource.data.createdAt == resource.data.createdAt;
         allow delete: if isGuardian(guardianId);
       }
 
@@ -80,6 +102,8 @@ service cloud.firestore {
             'payload', 'clientTimestamp'
           ])
           && request.resource.data.eventId == eventId
+          && request.resource.data.eventId.size() >= 1
+          && request.resource.data.eventId.size() <= 128
           && request.resource.data.playerId is string
           && request.resource.data.playerId.size() <= 128
           && request.resource.data.expectedRevision is int
@@ -87,7 +111,9 @@ service cloud.firestore {
           && request.resource.data.type in [
             'PLAYER_READY', 'ANSWER_SUBMIT', 'HINT_SEND', 'SPECIAL_READY'
           ]
-          && request.resource.data.payload is map;
+          && request.resource.data.payload is map
+          && request.resource.data.payload.keys().size() <= 8
+          && request.resource.data.clientTimestamp is int;
         allow read, update, delete: if false;
       }
 
