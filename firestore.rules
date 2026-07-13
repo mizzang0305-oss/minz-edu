@@ -1,0 +1,118 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isGuardian(guardianId) {
+      return signedIn() && request.auth.uid == guardianId;
+    }
+
+    function validLearningStage(schoolLevel, grade) {
+      return schoolLevel is string && grade is int && (
+        (schoolLevel == 'kindergarten' && grade >= 5 && grade <= 7) ||
+        (schoolLevel == 'elementary' && grade >= 1 && grade <= 6)
+      );
+    }
+
+    function isRoomGuardian(roomId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/rooms/$(roomId))
+          .data.guardianUids.hasAny([request.auth.uid]);
+    }
+
+    // Preserve the existing StudyMate owner-only user document boundary.
+    match /users/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    match /guardians/{guardianId} {
+      allow read: if isGuardian(guardianId);
+      allow create, update: if isGuardian(guardianId)
+        && request.resource.data.keys().hasOnly([
+          'displayName', 'childProfileIds', 'updatedAt'
+        ])
+        && request.resource.data.childProfileIds is list
+        && request.resource.data.childProfileIds.size() <= 10;
+      allow delete: if false;
+
+      match /children/{childId} {
+        allow read: if isGuardian(guardianId);
+        allow create, update: if isGuardian(guardianId)
+          && request.resource.data.keys().hasOnly([
+            'displayName', 'schoolLevel', 'grade', 'characterId', 'friendCode',
+            'createdAt', 'updatedAt'
+          ])
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() >= 1
+          && request.resource.data.displayName.size() <= 20
+          && validLearningStage(request.resource.data.schoolLevel, request.resource.data.grade)
+          && request.resource.data.friendCode is string
+          && request.resource.data.friendCode.size() == 8;
+        allow delete: if isGuardian(guardianId);
+      }
+
+      match /friendApprovals/{approvalId} {
+        allow read: if isGuardian(guardianId);
+        allow create, update: if isGuardian(guardianId)
+          && request.resource.data.keys().hasOnly([
+            'friendGuardianUid', 'status', 'createdAt', 'updatedAt'
+          ])
+          && request.resource.data.friendGuardianUid is string
+          && request.resource.data.friendGuardianUid != guardianId
+          && request.resource.data.status in ['pending', 'approved', 'blocked'];
+        allow delete: if isGuardian(guardianId);
+      }
+    }
+
+    match /rooms/{roomId} {
+      allow read: if signedIn()
+        && resource.data.guardianUids.hasAny([request.auth.uid]);
+      // Room lifecycle is changed only by Admin SDK / the server authority.
+      allow create, update, delete: if false;
+
+      match /commands/{eventId} {
+        allow create: if isRoomGuardian(roomId)
+          && request.resource.data.keys().hasOnly([
+            'eventId', 'playerId', 'expectedRevision', 'type',
+            'payload', 'clientTimestamp'
+          ])
+          && request.resource.data.eventId == eventId
+          && request.resource.data.playerId is string
+          && request.resource.data.playerId.size() <= 128
+          && request.resource.data.expectedRevision is int
+          && request.resource.data.expectedRevision >= 0
+          && request.resource.data.type in [
+            'PLAYER_READY', 'ANSWER_SUBMIT', 'HINT_SEND', 'SPECIAL_READY'
+          ]
+          && request.resource.data.payload is map;
+        allow read, update, delete: if false;
+      }
+
+      match /publicState/{documentId} {
+        allow read: if isRoomGuardian(roomId);
+        allow write: if false;
+      }
+
+      match /privateMembers/{childId} {
+        allow read: if isRoomGuardian(roomId);
+        allow write: if false;
+      }
+
+      match /results/{documentId} {
+        allow read: if isRoomGuardian(roomId);
+        allow write: if false;
+      }
+    }
+
+    match /roomCodes/{roomCode} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
