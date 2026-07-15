@@ -1,10 +1,18 @@
-import type { CoopBattleState } from "@/types/battle";
+import type { BossAttackSignal, CoopBattleState } from "@/types/battle";
 
 type GameEventMap = {
   sync: CoopBattleState;
   attack: { playerIndex: number; kind: "strong" | "magic" };
+  bossAttack: Omit<BossAttackSignal, "id">;
   special: { coop: boolean; skillName: string };
   specialComplete: undefined;
+  move: { direction: "left" | "right" | "up" | "down"; active: boolean };
+  dash: undefined;
+  explorationProgress: { collected: number; total: number; bridgeCrossed?: boolean; secretDiscovered?: boolean; npcTalked?: boolean; chestOpened?: boolean; nextDirection?: "왼쪽" | "오른쪽" | "위쪽" | "아래쪽" | "도착" };
+  explorationComplete: undefined;
+  interactionAvailable: { npcId: string; label: string } | null;
+  interact: { npcId: string };
+  sceneReady: undefined;
 };
 
 type Listener<K extends keyof GameEventMap> = (payload: GameEventMap[K]) => void;

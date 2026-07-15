@@ -1,0 +1,38 @@
+[browser] Image with src "/game-assets/duelyst/hero-thunder.webp" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
+[browser] Uncaught TypeError: Cannot read properties of undefined (reading 'stopFollow')
+    at EventEmitter.cleanup (src/game/scenes/NumberForestScene.ts:165:25)
+  163 |       this.unsubscribers = [];
+  164 |       this.touchDirections.clear();
+> 165 |       this.cameras.main.stopFollow();
+      |                         ^
+  166 |       this.time.removeAllEvents();
+  167 |       this.tweens.killAll();
+  168 |       this.cancelSpecialEffect();
+[browser] Uncaught TypeError: Cannot read properties of undefined (reading 'stopFollow')
+    at EventEmitter.cleanup (src/game/scenes/NumberForestScene.ts:165:25)
+  163 |       this.unsubscribers = [];
+  164 |       this.touchDirections.clear();
+> 165 |       this.cameras.main.stopFollow();
+      |                         ^
+  166 |       this.time.removeAllEvents();
+  167 |       this.tweens.killAll();
+  168 |       this.cancelSpecialEffect();
+[browser] Uncaught TypeError: Cannot read properties of undefined (reading 'stopFollow')
+    at EventEmitter.cleanup (src/game/scenes/NumberForestScene.ts:165:25)
+  163 |       this.unsubscribers = [];
+  164 |       this.touchDirections.clear();
+> 165 |       this.cameras.main.stopFollow();
+      |                         ^
+  166 |       this.time.removeAllEvents();
+  167 |       this.tweens.killAll();
+  168 |       this.cancelSpecialEffect();
+[browser] Uncaught TypeError: Cannot read properties of undefined (reading 'stopFollow')
+    at EventEmitter.cleanup (src/game/scenes/NumberForestScene.ts:165:25)
+  163 |       this.unsubscribers = [];
+  164 |       this.touchDirections.clear();
+> 165 |       this.cameras.main.stopFollow();
+      |                         ^
+  166 |       this.time.removeAllEvents();
+  167 |       this.tweens.killAll();
+  168 |       this.cancelSpecialEffect();
