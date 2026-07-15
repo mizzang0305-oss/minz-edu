@@ -2,6 +2,7 @@ import type { AdventureRecord, CoopObservationRecord, ParentSettings, StageProgr
 import { normalizeLearningStage } from "@/learning/stages";
 import { getWeeklyLearningGoals } from "@/learning/curriculumCatalog";
 import type { TrainingAttemptRecord } from "@/types/curriculum";
+import { GAME_DATA_CHANGED_EVENT } from "@/services/online/gameStateSync";
 
 export const STORAGE_KEY = "minz-learning-game";
 
@@ -152,8 +153,10 @@ export function readGameData(): StoredGameData {
   return parseStoredGameData(window.localStorage.getItem(STORAGE_KEY));
 }
 
-export function writeGameData(data: StoredGameData) {
-  if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+export function writeGameData(data: StoredGameData, notifySync = true) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  if (notifySync) window.dispatchEvent(new Event(GAME_DATA_CHANGED_EVENT));
 }
 
 export function saveSettings(settings: ParentSettings): StoredGameData {

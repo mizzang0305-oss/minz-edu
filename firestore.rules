@@ -79,6 +79,12 @@ service cloud.firestore {
           && request.resource.data.friendCode == resource.data.friendCode
           && request.resource.data.createdAt == resource.data.createdAt;
         allow delete: if isGuardian(guardianId);
+
+        // Progress, learning results, and inventory are authoritative server data.
+        // Only the Admin SDK route may read or mutate these documents.
+        match /gameState/{documentId} {
+          allow read, write: if false;
+        }
       }
 
       match /friendApprovals/{approvalId} {

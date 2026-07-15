@@ -111,7 +111,7 @@ export function SetupForm() {
       <button className="primary-button wide" type="submit" disabled={!hydrated}>
         {hydrated ? "저장하고 주별 학습 목표 고르기" : "모험 설정 불러오는 중…"}
       </button>
-      <p className="save-note" aria-live="polite">{saved ? "설정이 이 기기에 저장됐어요." : "모든 기록은 이 기기에만 저장됩니다."}</p>
+      <p className="save-note" aria-live="polite">{saved ? "기기에 저장했어요. 계정 연결 시 다른 기기에도 이어집니다." : "기기에 먼저 저장하고, 보호자 계정 연결 시 안전하게 동기화합니다."}</p>
     </form>
   );
 }

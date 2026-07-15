@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   allowChildProfileMutation,
+  allowGameStateMutation,
   allowGuardianAuthMutation,
   allowRoomMutation,
   resetOnlineMutationRateLimitsForTests,
@@ -25,6 +26,15 @@ describe("room mutation rate limit", () => {
     expect(allowChildProfileMutation("guardian", 1_000)).toBe(false);
     expect(allowGuardianAuthMutation("guardian", 1_000)).toBe(false);
     expect(allowRoomMutation("guardian", 1_000)).toBe(true);
+    expect(allowGameStateMutation("guardian", 1_000)).toBe(true);
+  });
+
+  it("allows a short game session burst but limits runaway state writes", () => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      expect(allowGameStateMutation("guardian", 1_000)).toBe(true);
+    }
+    expect(allowGameStateMutation("guardian", 1_000)).toBe(false);
+    expect(allowGameStateMutation("guardian", 61_001)).toBe(true);
   });
 
   it("fails closed instead of growing memory past the bucket limit", () => {

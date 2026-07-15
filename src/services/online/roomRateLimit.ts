@@ -2,6 +2,7 @@ const WINDOW_MS = 60_000;
 const MAX_MUTATIONS_PER_WINDOW = 12;
 const MAX_PROFILE_MUTATIONS_PER_WINDOW = 6;
 const MAX_AUTH_MUTATIONS_PER_WINDOW = 6;
+const MAX_GAME_STATE_MUTATIONS_PER_WINDOW = 20;
 const MAX_BUCKETS = 10_000;
 
 type Bucket = { count: number; resetAt: number };
@@ -15,7 +16,7 @@ function removeExpiredBuckets(now: number) {
 }
 
 function allowMutation(
-  scope: "room" | "profile" | "auth",
+  scope: "room" | "profile" | "auth" | "game-state",
   guardianUid: string,
   maxMutations: number,
   now: number,
@@ -43,6 +44,10 @@ export function allowChildProfileMutation(guardianUid: string, now = Date.now())
 
 export function allowGuardianAuthMutation(guardianUid: string, now = Date.now()) {
   return allowMutation("auth", guardianUid, MAX_AUTH_MUTATIONS_PER_WINDOW, now);
+}
+
+export function allowGameStateMutation(guardianUid: string, now = Date.now()) {
+  return allowMutation("game-state", guardianUid, MAX_GAME_STATE_MUTATIONS_PER_WINDOW, now);
 }
 
 export function resetOnlineMutationRateLimitsForTests() {

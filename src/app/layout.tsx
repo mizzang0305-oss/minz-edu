@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AppHeader } from "@/components/common/AppHeader";
+import { GameSyncProvider } from "@/components/sync/GameSyncProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -30,8 +31,10 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
-        <AppHeader />
-        {children}
+        <GameSyncProvider>
+          <AppHeader />
+          {children}
+        </GameSyncProvider>
       </body>
     </html>
   );

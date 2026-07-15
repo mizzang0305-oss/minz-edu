@@ -9,10 +9,16 @@ import {
 import { getFirebaseAdminAuth, hasFirebaseAdminConfig } from "@/lib/firebase/admin";
 import { readLimitedJsonBody } from "@/lib/auth/safeRequest";
 import { allowGuardianAuthMutation } from "@/services/online/roomRateLimit";
+import { getGuardianSession } from "@/lib/auth/guardianSession";
 
 export const dynamic = "force-dynamic";
 
 const noStoreHeaders = { "Cache-Control": "no-store" };
+
+export async function GET() {
+  const guardian = await getGuardianSession();
+  return Response.json({ authenticated: Boolean(guardian) }, { headers: noStoreHeaders });
+}
 
 export async function POST(request: Request) {
   if (!hasFirebaseAdminConfig()) {

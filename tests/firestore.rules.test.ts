@@ -112,6 +112,20 @@ describe("Firestore guardian boundaries", () => {
       }),
     );
   });
+
+  it("blocks direct client access to authoritative game-state documents", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "guardians/guardian-a/children/primary/gameState/current"), {
+        schemaVersion: 1,
+        revision: 1,
+        state: {},
+      });
+    });
+    const ownerDb = testEnv.authenticatedContext("guardian-a").firestore();
+    const stateRef = doc(ownerDb, "guardians/guardian-a/children/primary/gameState/current");
+    await assertFails(getDoc(stateRef));
+    await assertFails(setDoc(stateRef, { revision: 999 }, { merge: true }));
+  });
 });
 
 describe("Firestore authoritative room boundaries", () => {

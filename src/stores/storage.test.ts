@@ -40,6 +40,14 @@ describe("versioned local storage", () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").localCoopSettings.enabled).toBe(true);
   });
 
+  it("중앙 저장 시 동기화 이벤트를 보내고 원격 병합 저장은 다시 보내지 않는다", () => {
+    let events = 0;
+    window.addEventListener("minz:game-data-changed", () => { events += 1; });
+    const data = createDefaultGameData();
+    saveSettings(data.parentSettings);
+    expect(events).toBe(1);
+  });
+
   it("유아 단계를 보존하고 이전 중등 저장값은 초등으로 옮긴다", () => {
     const settings = { ...createDefaultGameData().parentSettings, schoolLevel: "kindergarten" as const, grade: 6, friendSchoolLevel: "kindergarten" as const, friendGrade: 5, mode: "local-shared-screen" as const };
     saveSettings(settings);
