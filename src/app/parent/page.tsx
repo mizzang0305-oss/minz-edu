@@ -1,2 +1,7 @@
 import { ParentDashboard } from "@/components/parent/ParentDashboard";
-export default function ParentPage() { return <ParentDashboard />; }
+import { getGuardianSession } from "@/lib/auth/guardianSession";
+
+export default async function ParentPage() {
+  const guardian = await getGuardianSession();
+  return <ParentDashboard onlineAccountConnected={Boolean(guardian)} />;
+}

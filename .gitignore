@@ -35,6 +35,16 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+.firebase-web-config.json
+.firebase-web-config.*.json
+.firebase-admin-key.json
+.firebase-admin-key.*.json
+.firebase/
+.playwright-cli/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
 
 # vercel
 .vercel

@@ -1,12 +1,41 @@
 import type { BattleAction, BattleMode, CoopBattleState, CoopPlayer } from "@/types/battle";
 import type { ParentSettings } from "@/types/progress";
+import type { SchoolLevel } from "@/types/learning";
+import type { WeeklyLearningGoal } from "@/types/curriculum";
+import type { ExplorationStageId } from "@/types/exploration";
+import { getLearningBattleProfile } from "@/learning/stages";
 import { addGauge, isCoopSpecialReady, isSoloSpecialReady } from "./SkillGaugeSystem";
 
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 
+const TEN_FRAME_SKILLS = new Set(["make-ten", "number-composition"]);
+
+export function supportsTenFrame(goal: WeeklyLearningGoal) {
+  return goal.stageId === "number-forest" && TEN_FRAME_SKILLS.has(goal.skillTag);
+}
+
+export function resolveBattleSelection(
+  goals: WeeklyLearningGoal[],
+  requestedStage: string | null,
+  requestedGoalId: string | null,
+): { stageId: ExplorationStageId; goal: WeeklyLearningGoal } {
+  const explicitStage: ExplorationStageId | null = requestedStage === "number-forest" || requestedStage === "word-island" || requestedStage === "story-castle"
+    ? requestedStage
+    : null;
+  const requestedGoal = goals.find((goal) => goal.id === requestedGoalId);
+  const preferredStage = explicitStage ?? requestedGoal?.stageId ?? "number-forest";
+  const goal = requestedGoal?.stageId === preferredStage
+    ? requestedGoal
+    : goals.find((candidate) => candidate.stageId === preferredStage)
+      ?? requestedGoal
+      ?? goals[0];
+  return { stageId: goal.stageId, goal };
+}
+
 function playerFromSettings(
   id: string,
   displayName: string,
+  schoolLevel: SchoolLevel,
   grade: number,
   role: CoopPlayer["role"],
   characterId: string,
@@ -14,8 +43,9 @@ function playerFromSettings(
   return {
     id,
     displayName,
+    schoolLevel,
     grade,
-    levelProfile: { math: grade === 2 ? "make-ten" : "carrying-addition" },
+    levelProfile: { math: getLearningBattleProfile({ schoolLevel, grade }).conceptId },
     characterId,
     role,
     hp: 100,
@@ -28,13 +58,14 @@ function playerFromSettings(
 
 export function createBattleState(settings: ParentSettings): CoopBattleState {
   const players = [
-    playerFromSettings("player-1", settings.playerName || "민표", settings.grade, settings.role, "thunder-swordsman"),
+    playerFromSettings("player-1", settings.playerName || "민표", settings.schoolLevel, settings.grade, settings.role, "thunder-swordsman"),
   ];
   if (settings.mode === "local-shared-screen") {
     players.push(
       playerFromSettings(
         "player-2",
         settings.friendName || "친구",
+        settings.friendSchoolLevel,
         settings.friendGrade,
         settings.friendRole,
         "fire-mage",
@@ -56,9 +87,16 @@ export function createBattleState(settings: ParentSettings): CoopBattleState {
     specialSkillReady: false,
     attemptCount: 0,
     completedMissionIds: [],
+    firstTryCorrectCount: 0,
+    currentQuestionRetried: false,
+    currentQuestionHintUsed: false,
     hintCount: 0,
     retryCount: 0,
-    message: coop ? "쌍둥이 숫자 슬라임이 합체했어!" : "숫자 슬라임이 길을 막았어!",
+    successfulDodges: 0,
+    failedDodges: 0,
+    dodgeStreak: 0,
+    damageTaken: 0,
+    message: coop ? "두 영웅 앞에 지역 수호자가 나타났어!" : "지역 수호자가 길을 헷갈리게 만들었어!",
     shakeIntensity: settings.shakeIntensity,
     soundVolume: settings.soundVolume,
     coopMetrics: {
@@ -88,6 +126,23 @@ function damageBoss(state: CoopBattleState, damage: number) {
   };
 }
 
+function damageActivePlayer(state: CoopBattleState, requestedDamage: number) {
+  const damage = Math.max(0, Math.min(30, Math.round(requestedDamage)));
+  let appliedDamage = 0;
+  const players = state.players.map((player, index) => {
+    if (index !== state.activePlayerIndex) return player;
+    const shieldDamage = Math.min(player.shield, damage);
+    const hpDamage = Math.min(Math.max(0, player.hp - 1), damage - shieldDamage);
+    appliedDamage = shieldDamage + hpDamage;
+    return {
+      ...player,
+      shield: player.shield - shieldDamage,
+      hp: player.hp - hpDamage,
+    };
+  });
+  return { players, appliedDamage };
+}
+
 function specialReady(state: CoopBattleState, players: CoopPlayer[], teamLinkGauge: number, deepComplete: boolean) {
   return players.length === 1
     ? isSoloSpecialReady(players[0].battleGauge, players[0].conceptGauge, deepComplete)
@@ -97,8 +152,10 @@ function specialReady(state: CoopBattleState, players: CoopPlayer[], teamLinkGau
 export function battleReducer(state: CoopBattleState, action: BattleAction): CoopBattleState {
   switch (action.type) {
     case "START":
-      return { ...state, battlePhase: "PLAYER_MANIPULATE", message: `${state.players[0].displayName} 차례 · 10칸 방어막을 열어 보자!` };
+      return { ...state, battlePhase: "PLAYER_MANIPULATE", message: `${state.players[0].displayName} 차례 · ${action.goalTitle ?? getLearningBattleProfile(state.players[0]).conceptName} 결계를 열어 보자!` };
     case "MANIPULATION_SUCCESS": {
+      const missionId = action.missionId ?? "move-block-1";
+      if (state.completedMissionIds.includes(missionId)) return state;
       const players = updateActivePlayer(state, (player) => ({
         ...player,
         battleGauge: addGauge(player.battleGauge, 40),
@@ -115,7 +172,10 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
         teamCombo: state.teamCombo + 1,
         battlePhase: "PLAYER_ANSWER",
         pendingCoopMissionId: isCoop ? "friend-remaining-number" : "solo-application",
-        completedMissionIds: [...state.completedMissionIds, "move-block-1"],
+        completedMissionIds: [...state.completedMissionIds, missionId],
+        firstTryCorrectCount: state.firstTryCorrectCount + (state.currentQuestionRetried || state.currentQuestionHintUsed ? 0 : 1),
+        currentQuestionRetried: false,
+        currentQuestionHintUsed: false,
         coopMetrics: isCoop
           ? { ...state.coopMetrics, waitedTurns: state.coopMetrics.waitedTurns + 1 }
           : state.coopMetrics,
@@ -123,7 +183,8 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
       };
     }
     case "ANSWER_SUCCESS": {
-      const isDeep = action.missionId === "deep-1";
+      if (state.completedMissionIds.includes(action.missionId)) return state;
+      const isDeep = action.deep === true || action.missionId === "deep-1";
       const players = updateActivePlayer(state, (player) => ({
         ...player,
         battleGauge: addGauge(player.battleGauge, isDeep ? 60 : 35),
@@ -146,6 +207,9 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
           battlePhase: "SPECIAL_CHALLENGE",
           pendingCoopMissionId: "deep-1",
           completedMissionIds: [...state.completedMissionIds, action.missionId],
+          firstTryCorrectCount: state.firstTryCorrectCount + (state.currentQuestionRetried || state.currentQuestionHintUsed ? 0 : 1),
+          currentQuestionRetried: false,
+          currentQuestionHintUsed: false,
           coopMetrics: {
             ...state.coopMetrics,
             waitedTurns: state.coopMetrics.waitedTurns + 1,
@@ -166,6 +230,9 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
           battlePhase: "SPECIAL_CHALLENGE",
           pendingCoopMissionId: "deep-1",
           completedMissionIds: [...state.completedMissionIds, action.missionId],
+          firstTryCorrectCount: state.firstTryCorrectCount + (state.currentQuestionRetried || state.currentQuestionHintUsed ? 0 : 1),
+          currentQuestionRetried: false,
+          currentQuestionHintUsed: false,
           message: "스페셜 작전 · 같은 답으로 가는 두 길을 찾아 보자!",
         };
       }
@@ -184,6 +251,9 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
         specialSkillReady: specialReady(state, chargedPlayers, chargedTeamGauge, true) || ready,
         battlePhase: "SPECIAL_READY",
         completedMissionIds: [...state.completedMissionIds, action.missionId],
+        firstTryCorrectCount: state.firstTryCorrectCount + (state.currentQuestionRetried || state.currentQuestionHintUsed ? 0 : 1),
+        currentQuestionRetried: false,
+        currentQuestionHintUsed: false,
         coopMetrics: players.length === 2
           ? {
               ...state.coopMetrics,
@@ -196,34 +266,59 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
     }
     case "ANSWER_RETRY": {
       const attemptCount = state.attemptCount + 1;
-      const shieldLoss = attemptCount >= 2 ? 5 : 0;
-      const players = updateActivePlayer(state, (player) => ({ ...player, shield: Math.max(0, player.shield - shieldLoss) }));
+      const activeProfile = getLearningBattleProfile(state.players[state.activePlayerIndex]);
       return {
         ...state,
-        players,
         attemptCount,
         retryCount: state.retryCount + 1,
+        currentQuestionRetried: true,
         teamLinkGauge: state.players.length === 2 ? state.teamLinkGauge : 0,
         coopMetrics: state.players.length === 2
           ? { ...state.coopMetrics, retries: state.coopMetrics.retries + 1 }
           : state.coopMetrics,
         message: attemptCount === 1
-          ? "숫자 슬라임이 공격을 막았어! 다른 작전을 사용해 보자."
-          : "동료가 보호막을 펼쳤어. 힌트로 약점을 찾아 보자!",
+          ? "괜찮아, 아직 기회가 있어! 그림이나 단서를 한 번 더 천천히 살펴보자."
+          : `좋은 도전이야. 힌트: ${action.hint ?? activeProfile.hint}`,
       };
     }
-    case "USE_HINT":
+    case "DODGE_SUCCESS":
       return {
         ...state,
-        hintCount: state.hintCount + 1,
-        teamLinkGauge: state.players.length === 2 ? clamp(state.teamLinkGauge + 10) : 0,
-        coopMetrics: state.players.length === 2
+        successfulDodges: state.successfulDodges + 1,
+        dodgeStreak: state.dodgeStreak + 1,
+        message: `${state.players[state.activePlayerIndex].displayName}, 문제를 풀어 공격을 피했어! 반격하자!`,
+      };
+    case "DODGE_FAILED": {
+      const retried = battleReducer(state, { type: "ANSWER_RETRY", hint: action.hint });
+      const { players, appliedDamage } = damageActivePlayer(retried, action.damage);
+      const target = players[retried.activePlayerIndex];
+      return {
+        ...retried,
+        players,
+        failedDodges: state.failedDodges + 1,
+        dodgeStreak: 0,
+        damageTaken: state.damageTaken + appliedDamage,
+        message: target.shield > 0
+          ? `${target.displayName}의 보호막이 공격을 막았어. 단서를 보고 다시 회피하자!`
+          : `${target.displayName}, 공격을 맞았지만 괜찮아. 천천히 풀면 다음 공격은 피할 수 있어!`,
+      };
+    }
+    case "USE_HINT": {
+      const activeProfile = getLearningBattleProfile(state.players[state.activePlayerIndex]);
+      const firstHintForQuestion = !state.currentQuestionHintUsed;
+      return {
+        ...state,
+        hintCount: state.hintCount + (firstHintForQuestion ? 1 : 0),
+        currentQuestionHintUsed: true,
+        teamLinkGauge: state.players.length === 2 && firstHintForQuestion ? clamp(state.teamLinkGauge + 10) : state.teamLinkGauge,
+        coopMetrics: state.players.length === 2 && firstHintForQuestion
           ? { ...state.coopMetrics, hintsShared: state.coopMetrics.hintsShared + 1 }
           : state.coopMetrics,
-        message: "8에 2를 더하면 10이 돼. 7에서 2를 옮기면 5가 남아.",
+        message: action.hint ?? activeProfile.hint,
       };
+    }
     case "SPECIAL_CHALLENGE_SUCCESS":
-      return battleReducer(state, { type: "ANSWER_SUCCESS", missionId: "deep-1" });
+      return battleReducer(state, { type: "ANSWER_SUCCESS", missionId: action.missionId ?? "deep-1", deep: true });
     case "PLAYER_READY": {
       const players = state.players.map((player, index) => index === action.playerIndex ? { ...player, ready: true } : player);
       const allReady = players.every((player) => player.ready);
@@ -231,7 +326,7 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
         ...state,
         players,
         battlePhase: allReady ? "SPECIAL_CUTSCENE" : state.battlePhase,
-        message: allReady ? "힘이 하나로 합쳐졌어!" : `${players[action.playerIndex].displayName} 준비 완료 · 친구를 기다리는 중`,
+        message: allReady ? (players.length === 2 ? "두 힘이 하나로 합쳐졌어!" : "번개 에너지가 가득 모였어!") : `${players[action.playerIndex].displayName} 준비 완료 · 친구를 기다리는 중`,
       };
     }
     case "RESET_READY":

@@ -1,3 +1,5 @@
+import type { SchoolLevel } from "./learning";
+
 export type PlayerRole = "attack" | "defense" | "magic" | "support";
 export type BattleMode = "solo" | "local-shared-screen";
 
@@ -19,6 +21,7 @@ export type BattlePhase =
 export type CoopPlayer = {
   id: string;
   displayName: string;
+  schoolLevel: SchoolLevel;
   grade: number;
   levelProfile: Record<string, string>;
   characterId: string;
@@ -54,8 +57,15 @@ export type CoopBattleState = {
   specialSkillReady: boolean;
   attemptCount: number;
   completedMissionIds: string[];
+  firstTryCorrectCount: number;
+  currentQuestionRetried: boolean;
+  currentQuestionHintUsed: boolean;
   hintCount: number;
   retryCount: number;
+  successfulDodges: number;
+  failedDodges: number;
+  dodgeStreak: number;
+  damageTaken: number;
   message: string;
   shakeIntensity: 0 | 1 | 2;
   soundVolume: number;
@@ -87,15 +97,24 @@ export type CoopMission = {
 };
 
 export type BattleAction =
-  | { type: "START" }
-  | { type: "MANIPULATION_SUCCESS" }
-  | { type: "ANSWER_SUCCESS"; missionId: string }
-  | { type: "ANSWER_RETRY" }
-  | { type: "USE_HINT" }
-  | { type: "SPECIAL_CHALLENGE_SUCCESS" }
+  | { type: "START"; goalTitle?: string }
+  | { type: "MANIPULATION_SUCCESS"; missionId?: string }
+  | { type: "ANSWER_SUCCESS"; missionId: string; deep?: boolean }
+  | { type: "ANSWER_RETRY"; hint?: string }
+  | { type: "DODGE_SUCCESS" }
+  | { type: "DODGE_FAILED"; damage: number; hint?: string }
+  | { type: "USE_HINT"; hint?: string }
+  | { type: "SPECIAL_CHALLENGE_SUCCESS"; missionId?: string }
   | { type: "PLAYER_READY"; playerIndex: number }
   | { type: "RESET_READY" }
   | { type: "SPECIAL_COMPLETE" };
+
+export type BossAttackSignal = {
+  id: number;
+  targetPlayerIndex: number;
+  outcome: "telegraph" | "dodge" | "hit";
+  attackName: string;
+};
 
 export type OnlineRoomStatus =
   | "waiting"

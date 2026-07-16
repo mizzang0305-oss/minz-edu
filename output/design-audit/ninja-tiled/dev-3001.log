@@ -1,0 +1,9 @@
+
+> minz-edu-app@0.1.0 dev
+> next dev --port 3001
+
+▲ Next.js 16.2.10 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://100.126.94.2:3001
+✓ Ready in 3.8s
+[?25h
