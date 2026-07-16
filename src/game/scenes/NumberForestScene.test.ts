@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("phaser", () => ({ Scene: class {} }));
+vi.mock("phaser", () => ({
+  Scene: class {},
+  Input: {
+    Keyboard: {
+      JustDown: (key: { pressed?: boolean }) => Boolean(key?.pressed),
+    },
+  },
+}));
 import {
   ADVENTURE_WORLD_HEIGHT,
   ADVENTURE_WORLD_WIDTH,
@@ -21,6 +28,51 @@ describe("NumberForestScene movement helpers", () => {
     );
 
     expect(movement).toMatchObject({ x: 10, y: 0, moved: true });
+  });
+
+  it("숨은 통로는 밟기만 해서는 열리지 않고 직접 상호작용해야 열린다", () => {
+    const scene = new NumberForestScene() as unknown as Record<string, unknown>;
+    const secretObjects = [{ setAlpha: vi.fn() }, { setAlpha: vi.fn() }];
+    Object.assign(scene, {
+      players: [{ sprite: { x: 650, y: 380 } }],
+      bridgeCrossed: false,
+      secretDiscovered: false,
+      nearbyInteractionId: "lower-hidden-path",
+      secretPathObjects: secretObjects,
+      safeSetText: vi.fn(),
+      emitProgress: vi.fn(),
+    });
+
+    const checkMilestones = scene.checkExplorationMilestones as () => void;
+    checkMilestones.call(scene);
+    expect(scene.secretDiscovered).toBe(false);
+
+    const activateInteraction = scene.activateInteraction as (id: string) => void;
+    activateInteraction.call(scene, "lower-hidden-path");
+    expect(scene.secretDiscovered).toBe(true);
+    secretObjects.forEach((object) => expect(object.setAlpha).toHaveBeenCalledWith(1));
+  });
+
+  it("이동 키를 놓은 상태에서 E 키로 가까운 화면 이벤트를 실행한다", () => {
+    const scene = new NumberForestScene() as unknown as Record<string, unknown>;
+    const activateInteraction = vi.fn();
+    Object.assign(scene, {
+      explorationActive: true,
+      players: [{ sprite: {} }],
+      cursors: { left: {}, right: {}, up: {}, down: {} },
+      wasd: { left: {}, right: {}, up: {}, down: {} },
+      touchDirections: new Set(),
+      dashKey: { pressed: false },
+      interactKey: { pressed: true },
+      enterKey: { pressed: false },
+      nearbyInteractionId: "forest-guide",
+      checkInteractionProximity: vi.fn(),
+      activateInteraction,
+    });
+
+    const update = scene.update as (time: number, delta: number) => void;
+    update.call(scene, 100, 16);
+    expect(activateInteraction).toHaveBeenCalledWith("forest-guide");
   });
 
   it("대시를 작은 단계로 나눠 장애물을 건너뛰지 않는다", () => {

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type Phaser from "phaser";
 import { gameEventBridge } from "@/game/bridge/gameEventBridge";
+import type { ExplorationInteraction } from "@/game/bridge/gameEventBridge";
 import type { BossAttackSignal, CoopBattleState } from "@/types/battle";
 import type { ExplorationStageId } from "@/types/exploration";
 
@@ -27,9 +28,13 @@ export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, spe
   const exploreCallbackRef = useRef(onExploreComplete);
   const activePointersRef = useRef(new Map<number, Direction>());
   const [progress, setProgress] = useState({ collected: 0, total: 3, bridgeCrossed: false, secretDiscovered: false, npcTalked: false, chestOpened: false, nextDirection: "오른쪽" as "왼쪽" | "오른쪽" | "위쪽" | "아래쪽" | "도착" });
-  const [interaction, setInteraction] = useState<{ npcId: string; label: string } | null>(null);
+  const [interaction, setInteraction] = useState<ExplorationInteraction | null>(null);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const primaryPlayer = battle.players[0];
+  const learningStageLabel = primaryPlayer.schoolLevel === "kindergarten"
+    ? `유아 ${primaryPlayer.grade}세`
+    : `초등 ${primaryPlayer.grade}학년`;
 
   function move(direction: Direction, active: boolean) {
     gameEventBridge.emit("move", { direction, active });
@@ -173,19 +178,37 @@ export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, spe
 
   return (
     <section className="rpg-play-stage" aria-label="직접 움직이는 학습 RPG 탐험">
-      <div ref={parentRef} className="phaser-stage" data-testid="phaser-stage">{!ready && !loadError && <div className="rpg-loading-overlay"><strong>모험 지도를 펼치는 중…</strong><span>영웅과 수호자를 불러오고 있어요.</span></div>}{loadError && <div className="rpg-load-error"><strong>탐험 지도를 열지 못했어요</strong><button type="button" onClick={() => window.location.reload()}>다시 열기</button></div>}</div>
-      {battle.battlePhase === "INTRO" && (
-        <div className="rpg-control-deck">
-          <div className="rpg-quest-chip" aria-live="polite"><span>EXPLORE · 목표 {progress.nextDirection}</span><strong>{!progress.npcTalked ? "길잡이와 대화하기" : !progress.chestOpened ? "보물 상자 열기" : `수집물 ${progress.collected}/${progress.total}`}</strong><small>{progress.npcTalked ? (progress.bridgeCrossed ? "관문 통과 완료" : "빛나는 관문을 찾아요") : "가까이 가서 말 걸기 버튼을 눌러요"}{progress.secretDiscovered ? " · 숨은 길 발견" : ""}</small>{interaction && <button type="button" className="rpg-interact-button" onClick={() => gameEventBridge.emit("interact", { npcId: interaction.npcId })}>{interaction.label}</button>}</div>
-          <div className="touch-dpad" role="group" aria-label="캐릭터 이동 조이스틱" onContextMenu={(event) => event.preventDefault()}>
+      <div ref={parentRef} className="phaser-stage" data-testid="phaser-stage">
+        {!ready && !loadError && <div className="rpg-loading-overlay"><strong>모험 지도를 펼치는 중…</strong><span>영웅과 수호자를 불러오고 있어요.</span></div>}
+        {loadError && <div className="rpg-load-error"><strong>탐험 지도를 열지 못했어요</strong><button type="button" onClick={() => window.location.reload()}>다시 열기</button></div>}
+        {battle.battlePhase === "INTRO" && (
+          <>
+            <div className="rpg-quest-overlay" aria-live="polite">
+              <span>{learningStageLabel} · 목표 {progress.nextDirection}</span>
+              <strong>{!progress.npcTalked ? "길잡이와 대화하기" : !progress.chestOpened ? "보물 상자 열기" : `수집물 ${progress.collected}/${progress.total}`}</strong>
+              <small>{progress.secretDiscovered ? "숨은 길 발견 완료" : "캐릭터 주변의 빛나는 버튼을 눌러요"}</small>
+            </div>
+            {interaction && (
+              <button
+                type="button"
+                className={`rpg-world-object-prompt is-${interaction.kind}`}
+                style={{ left: `${interaction.xPercent}%`, top: `${interaction.yPercent}%` }}
+                onClick={() => gameEventBridge.emit("interact", { npcId: interaction.npcId })}
+              >
+                <span className="rpg-prompt-key" aria-hidden="true">E</span>
+                <span><strong>{interaction.label}</strong><small>{interaction.hint}</small></span>
+              </button>
+            )}
+            <div className="touch-dpad rpg-world-dpad" role="group" aria-label="캐릭터 이동 조이스틱" onContextMenu={(event) => event.preventDefault()}>
             <button type="button" disabled={!ready} className="dpad-up" aria-label="위로 이동" onPointerDown={(event) => startMove("up", event)} onPointerUp={stopMove} onPointerCancel={stopMove} onLostPointerCapture={stopMove}>▲</button>
             <button type="button" disabled={!ready} className="dpad-left" aria-label="왼쪽으로 이동" onPointerDown={(event) => startMove("left", event)} onPointerUp={stopMove} onPointerCancel={stopMove} onLostPointerCapture={stopMove}>◀</button>
             <button type="button" disabled={!ready} className="dpad-right" aria-label="오른쪽으로 이동" onPointerDown={(event) => startMove("right", event)} onPointerUp={stopMove} onPointerCancel={stopMove} onLostPointerCapture={stopMove}>▶</button>
             <button type="button" disabled={!ready} className="dpad-down" aria-label="아래로 이동" onPointerDown={(event) => startMove("down", event)} onPointerUp={stopMove} onPointerCancel={stopMove} onLostPointerCapture={stopMove}>▼</button>
             <button type="button" disabled={!ready} className="dpad-dash" aria-label="짧게 대시" onPointerDown={(event) => { event.preventDefault(); gameEventBridge.emit("dash", undefined); }}>DASH</button>
-          </div>
-        </div>
-      )}
+            </div>
+          </>
+        )}
+      </div>
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { gameEventBridge } from "@/game/bridge/gameEventBridge";
+import { gameEventBridge, type ExplorationInteraction } from "@/game/bridge/gameEventBridge";
 import type { CoopBattleState } from "@/types/battle";
 import { getExplorationMap } from "@/game/maps/mapRegistry";
 import type { ExplorationMapDefinition, ExplorationRect, ExplorationStageId } from "@/types/exploration";
@@ -68,6 +68,8 @@ export class NumberForestScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd?: Record<"left" | "right" | "up" | "down", Phaser.Input.Keyboard.Key>;
   private dashKey?: Phaser.Input.Keyboard.Key;
+  private interactKey?: Phaser.Input.Keyboard.Key;
+  private enterKey?: Phaser.Input.Keyboard.Key;
   private touchDirections = new Set<Direction>();
   private unsubscribers: Array<() => void> = [];
   private currentState?: CoopBattleState;
@@ -80,7 +82,7 @@ export class NumberForestScene extends Phaser.Scene {
   private secretDiscovered = false;
   private npcTalked = false;
   private chestOpened = false;
-  private nearbyNpcId: string | null = null;
+  private nearbyInteractionId: string | null = null;
   private metNpcIds = new Set<string>();
   private disposed = false;
   private dashUntil = 0;
@@ -116,17 +118,19 @@ export class NumberForestScene extends Phaser.Scene {
 
     this.createEnvironment();
 
-    this.statusText = this.add.text(20, 18, this.map.objectiveCopy, {
+    this.statusText = this.add.text(ADVENTURE_WORLD_WIDTH / 2, 18, "", {
       fontFamily: "Malgun Gothic, Arial, sans-serif",
-      fontSize: "26px",
+      fontSize: "16px",
       color: "#fff4b5",
       fontStyle: "bold",
       backgroundColor: "#071b2bdd",
-      padding: { x: 12, y: 8 },
-    }).setDepth(30).setScrollFactor(0);
+      padding: { x: 9, y: 6 },
+      align: "center",
+      wordWrap: { width: 420 },
+    }).setOrigin(0.5, 0).setDepth(30).setScrollFactor(0);
     this.counterText = this.add.text(width - 18, 18, `${this.map.collectionLabel} 0 / ${this.map.collectibles.length}`, {
       fontFamily: "Malgun Gothic, Arial, sans-serif",
-      fontSize: "22px",
+      fontSize: "16px",
       color: "#14233b",
       fontStyle: "bold",
       backgroundColor: "#ffd75d",
@@ -148,6 +152,8 @@ export class NumberForestScene extends Phaser.Scene {
         down: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
       };
       this.dashKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+      this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+      this.enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
     }
 
     this.unsubscribers.push(
@@ -157,7 +163,7 @@ export class NumberForestScene extends Phaser.Scene {
       gameEventBridge.on("special", (payload) => this.playSpecial(payload.coop, payload.skillName)),
       gameEventBridge.on("move", ({ direction, active }) => active ? this.touchDirections.add(direction) : this.touchDirections.delete(direction)),
       gameEventBridge.on("dash", () => this.activateDash(this.time.now)),
-      gameEventBridge.on("interact", ({ npcId }) => this.talkToNpc(npcId)),
+      gameEventBridge.on("interact", ({ npcId }) => this.activateInteraction(npcId)),
     );
 
     const cleanup = () => {
@@ -191,7 +197,14 @@ export class NumberForestScene extends Phaser.Scene {
     const dx = Number(right) - Number(left);
     const dy = Number(down) - Number(up);
     if (this.dashKey && Phaser.Input.Keyboard.JustDown(this.dashKey)) this.activateDash(time);
-    this.checkNpcProximity();
+    this.checkInteractionProximity();
+    if (
+      this.nearbyInteractionId &&
+      ((this.interactKey && Phaser.Input.Keyboard.JustDown(this.interactKey)) ||
+        (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)))
+    ) {
+      this.activateInteraction(this.nearbyInteractionId);
+    }
     if (dx === 0 && dy === 0) return;
     const movement = movementDelta(dx, dy, delta);
     const dashMultiplier = time < this.dashUntil ? 2.15 : 1;
@@ -223,7 +236,11 @@ export class NumberForestScene extends Phaser.Scene {
     this.add.text(bridge.x + bridge.width / 2, bridge.y - 12, bridge.label, { fontSize: "12px", color: "#fff0a8", backgroundColor: "#08243ddd", padding: { x: 6, y: 3 } }).setOrigin(0.5).setDepth(11);
 
     const secret = this.map.secretArea;
-    const secretGlow = this.add.rectangle(secret.x + secret.width / 2, secret.y + secret.height / 2, secret.width, secret.height, 0x9fe870, 0.08).setStrokeStyle(2, 0xc9ffa8, 0.16).setDepth(4);
+    const secretGlow = this.add.rectangle(secret.x + secret.width / 2, secret.y + secret.height / 2, secret.width, secret.height, 0x9fe870, 0.08)
+      .setStrokeStyle(2, 0xc9ffa8, 0.16)
+      .setDepth(4)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.activateInteraction(secret.id));
     const secretLabel = this.add.text(secret.x + secret.width / 2, secret.y + secret.height / 2, "?", { fontSize: "20px", color: "#d9ffc3", fontStyle: "bold" }).setOrigin(0.5).setAlpha(0.3).setDepth(6);
     this.secretPathObjects = [secretGlow, secretLabel];
   }
@@ -242,7 +259,11 @@ export class NumberForestScene extends Phaser.Scene {
   private createNpcs() {
     this.map.npcs.forEach((npc) => {
       this.add.circle(npc.x, npc.y + 22, 30, 0xffca4b, 0.18).setStrokeStyle(2, 0xffe89a, 0.8).setDepth(14);
-      this.add.image(npc.x, npc.y, "hero2").setDisplaySize(151, 100).setDepth(16);
+      this.add.image(npc.x, npc.y, "hero2")
+        .setDisplaySize(151, 100)
+        .setDepth(16)
+        .setInteractive({ useHandCursor: true })
+        .on("pointerdown", () => this.activateInteraction(npc.id));
       this.add.text(npc.x, npc.y + 48, npc.name, { fontFamily: "Malgun Gothic, Arial, sans-serif", fontSize: "12px", color: "#fff7c4", fontStyle: "bold", backgroundColor: "#573315dd", padding: { x: 7, y: 3 } }).setOrigin(0.5).setDepth(20);
     });
   }
@@ -250,7 +271,9 @@ export class NumberForestScene extends Phaser.Scene {
   private createChest() {
     this.chest = this.add.image(this.map.chest.x, this.map.chest.y, "treasure-chest")
       .setDisplaySize(127, 88)
-      .setDepth(Math.round(this.map.chest.y));
+      .setDepth(Math.round(this.map.chest.y))
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.activateInteraction(this.map.chest.id));
     this.add.text(this.map.chest.x, this.map.chest.y + 48, this.map.chest.rewardLabel, {
       fontFamily: "Malgun Gothic, Arial, sans-serif",
       fontSize: "11px",
@@ -263,7 +286,7 @@ export class NumberForestScene extends Phaser.Scene {
 
   private openChest() {
     this.chestOpened = true;
-    this.nearbyNpcId = null;
+    this.nearbyInteractionId = null;
     this.chest?.setTint(0xffef9a);
     if (!this.reducedMotion && this.chest) {
       this.tweens.add({ targets: this.chest, y: this.chest.y - 10, scale: 1.08, duration: 180, yoyo: true });
@@ -277,34 +300,105 @@ export class NumberForestScene extends Phaser.Scene {
     this.emitProgress();
   }
 
-  private checkNpcProximity() {
+  private checkInteractionProximity() {
     const hero = this.players[0];
     if (!hero) return;
     const chestNearby = this.npcTalked && !this.chestOpened && Phaser.Math.Distance.Between(hero.sprite.x, hero.sprite.y, this.map.chest.x, this.map.chest.y) <= 105;
     const npc = this.map.npcs.find((item) => !this.metNpcIds.has(item.id) && Phaser.Math.Distance.Between(hero.sprite.x, hero.sprite.y, item.x, item.y) <= 115);
+    const secretNearby = !this.secretDiscovered && pointInExpandedRect(
+      { x: hero.sprite.x, y: hero.sprite.y },
+      this.map.secretArea,
+      58,
+    );
+    const bossReady = this.npcTalked && this.chestOpened && this.collected >= this.tokens.length && this.bridgeCrossed;
+    const bossNearby = bossReady && Phaser.Math.Distance.Between(hero.sprite.x, hero.sprite.y, this.map.portal.x, this.map.portal.y) <= PORTAL_REACH_RADIUS + 35;
+    let interaction: ExplorationInteraction | null = null;
+
     if (chestNearby) {
-      if (this.nearbyNpcId !== this.map.chest.id) {
-        this.nearbyNpcId = this.map.chest.id;
-        gameEventBridge.emit("interactionAvailable", { npcId: this.map.chest.id, label: this.map.chest.label });
-      }
-      return;
+      interaction = this.buildInteraction(
+        this.map.chest.id,
+        "chest",
+        this.map.chest.label,
+        "보물 상자를 눌러 수집물을 깨워요",
+        this.map.chest.x,
+        this.map.chest.y,
+      );
+    } else if (npc) {
+      interaction = this.buildInteraction(
+        npc.id,
+        "talk",
+        `${npc.name}에게 말 걸기`,
+        "화면 버튼 또는 E·Enter 키",
+        npc.x,
+        npc.y,
+      );
+    } else if (secretNearby) {
+      interaction = this.buildInteraction(
+        this.map.secretArea.id,
+        "secret",
+        `${this.map.secretArea.rewardLabel} 조사하기`,
+        "수상한 빛을 직접 눌러 확인해요",
+        this.map.secretArea.x + this.map.secretArea.width / 2,
+        this.map.secretArea.y + this.map.secretArea.height / 2,
+      );
+    } else if (bossNearby) {
+      interaction = this.buildInteraction(
+        this.map.boss.id,
+        "boss",
+        `${this.map.boss.name}에게 도전하기`,
+        "누르면 문제와 전투가 같은 화면에서 시작돼요",
+        this.map.boss.x,
+        this.map.boss.y,
+      );
     }
-    const nextId = npc?.id ?? null;
-    if (nextId === this.nearbyNpcId) return;
-    this.nearbyNpcId = nextId;
-    gameEventBridge.emit("interactionAvailable", npc ? { npcId: npc.id, label: `${npc.name}에게 말 걸기` } : null);
+    const nextId = interaction?.npcId ?? null;
+    if (nextId === this.nearbyInteractionId) return;
+    this.nearbyInteractionId = nextId;
+    gameEventBridge.emit("interactionAvailable", interaction);
   }
 
-  private talkToNpc(npcId: string) {
-    if (npcId === this.map.chest.id && this.nearbyNpcId === npcId && !this.chestOpened) {
+  private buildInteraction(
+    npcId: string,
+    kind: ExplorationInteraction["kind"],
+    label: string,
+    hint: string,
+    x: number,
+    y: number,
+  ): ExplorationInteraction {
+    return {
+      npcId,
+      kind,
+      label,
+      hint,
+      xPercent: clamp((x / ADVENTURE_WORLD_WIDTH) * 100, 24, 76),
+      yPercent: clamp(((y - 62) / ADVENTURE_WORLD_HEIGHT) * 100, 18, 78),
+    };
+  }
+
+  private activateInteraction(npcId: string) {
+    if (npcId !== this.nearbyInteractionId) return;
+    if (npcId === this.map.chest.id && !this.chestOpened) {
       this.openChest();
       return;
     }
+    if (npcId === this.map.secretArea.id && !this.secretDiscovered) {
+      this.secretDiscovered = true;
+      this.nearbyInteractionId = null;
+      this.secretPathObjects.forEach((object) => object.setAlpha(1));
+      this.safeSetText(this.statusText, `${this.map.secretArea.rewardLabel} 발견! 숨은 보상을 기록했어요.`);
+      gameEventBridge.emit("interactionAvailable", null);
+      this.emitProgress();
+      return;
+    }
+    if (npcId === this.map.boss.id) {
+      this.finishExploration();
+      return;
+    }
     const npc = this.map.npcs.find((item) => item.id === npcId);
-    if (!npc || this.nearbyNpcId !== npcId || this.metNpcIds.has(npcId)) return;
+    if (!npc || this.metNpcIds.has(npcId)) return;
     this.metNpcIds.add(npcId);
     this.npcTalked = this.map.npcs.filter((item) => item.required).every((item) => this.metNpcIds.has(item.id));
-    this.nearbyNpcId = null;
+    this.nearbyInteractionId = null;
     this.safeSetText(this.statusText, npc.prompt);
     gameEventBridge.emit("interactionAvailable", null);
     this.emitProgress();
@@ -320,7 +414,12 @@ export class NumberForestScene extends Phaser.Scene {
   }
 
   private createBoss() {
-    this.boss = this.add.image(this.map.boss.x, this.map.boss.y, "guardian").setDisplaySize(this.map.boss.exploreSize.width, this.map.boss.exploreSize.height).setDepth(8).setAlpha(0.72);
+    this.boss = this.add.image(this.map.boss.x, this.map.boss.y, "guardian")
+      .setDisplaySize(this.map.boss.exploreSize.width, this.map.boss.exploreSize.height)
+      .setDepth(8)
+      .setAlpha(0.72)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.activateInteraction(this.map.boss.id));
     this.bossName = this.add.text(this.map.boss.x - 10, this.map.boss.y + this.map.boss.exploreSize.height / 2 + 15, `${"◆".repeat(this.map.boss.threatTier)} ${this.map.boss.name}`, {
       fontFamily: "Malgun Gothic, Arial, sans-serif",
       fontSize: "13px",
@@ -392,7 +491,7 @@ export class NumberForestScene extends Phaser.Scene {
     this.followCompanion();
     this.collectNearbyTokens();
     this.checkExplorationMilestones();
-    this.checkPortal();
+    this.checkInteractionProximity();
   }
 
   private isBlocked(x: number, y: number) {
@@ -410,16 +509,9 @@ export class NumberForestScene extends Phaser.Scene {
   private checkExplorationMilestones() {
     const hero = this.players[0];
     if (!hero) return;
-    const inside = (rect: ExplorationRect) => pointInExpandedRect({ x: hero.sprite.x, y: hero.sprite.y }, rect);
     if (!this.bridgeCrossed && this.isInBridgePassage(hero.sprite.x, hero.sprite.y)) {
       this.bridgeCrossed = true;
       this.safeSetText(this.statusText, `${this.map.bridge.label} 통과 완료!`);
-      this.emitProgress();
-    }
-    if (!this.secretDiscovered && inside(this.map.secretArea)) {
-      this.secretDiscovered = true;
-      this.secretPathObjects.forEach((object) => object.setAlpha(1));
-      this.safeSetText(this.statusText, `${this.map.secretArea.rewardLabel} 발견!`);
       this.emitProgress();
     }
   }
@@ -477,19 +569,21 @@ export class NumberForestScene extends Phaser.Scene {
     });
   }
 
-  private checkPortal() {
-    const hero = this.players[0];
-    const portalReached = hero && Phaser.Math.Distance.Between(hero.sprite.x, hero.sprite.y, this.map.portal.x, this.map.portal.y) <= PORTAL_REACH_RADIUS;
-    if (!hero || !portalReached || this.explorationComplete || !this.npcTalked || !this.chestOpened || this.collected < this.tokens.length || !this.bridgeCrossed) return;
+  private finishExploration() {
+    if (this.explorationComplete || !this.npcTalked || !this.chestOpened || this.collected < this.tokens.length || !this.bridgeCrossed) return;
     this.explorationComplete = true;
+    this.nearbyInteractionId = null;
     this.safeSetText(this.statusText, `${this.map.boss.name} 앞에 도착! 학습 작전을 시작할 수 있어요.`);
     this.safeSetText(this.counterText, "탐험 완료");
     if (!this.reducedMotion) this.cameras.main.flash(320, 105, 220, 245, false);
+    gameEventBridge.emit("interactionAvailable", null);
     gameEventBridge.emit("explorationComplete", undefined);
   }
 
   private enterBattleLayout() {
     this.explorationActive = false;
+    this.nearbyInteractionId = null;
+    gameEventBridge.emit("interactionAvailable", null);
     this.touchDirections.clear();
     this.cameras.main.stopFollow();
     this.cameras.main.centerOn(ADVENTURE_WORLD_WIDTH / 2, ADVENTURE_WORLD_HEIGHT / 2);

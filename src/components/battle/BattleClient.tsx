@@ -38,7 +38,6 @@ export function BattleClient() {
   const [specialSignal, setSpecialSignal] = useState(0);
   const [readyCountdownActive, setReadyCountdownActive] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(5);
-  const [explorationComplete, setExplorationComplete] = useState(false);
   const [stageId, setStageId] = useState<"number-forest" | "word-island" | "story-castle">("number-forest");
   const [learningGoal, setLearningGoal] = useState<WeeklyLearningGoal | null>(null);
   const [learningFeedback, setLearningFeedback] = useState<ReturnType<typeof buildCorrectFeedback> | null>(null);
@@ -65,7 +64,6 @@ export function BattleClient() {
       const initialBattle = createBattleState(stored.parentSettings);
       const bossMaxHp = 90 + encounter.threatTier * 45;
       setBattle({ ...initialBattle, battlePhase: qaCombat ? "PLAYER_MANIPULATE" : "INTRO", bossHp: bossMaxHp, bossMaxHp, bossShield: encounter.threatTier === 1 ? 10 : encounter.threatTier === 2 ? 25 : 40, message: qaCombat ? `${initialBattle.players[0].displayName} 차례 · ${selection.goal.unitTitle} 첫 번째 결계를 열어 보자!` : `${withJosa(encounter.name, "이", "가")} 학습 길을 헷갈리게 만들었어!` });
-      setExplorationComplete(qaCombat);
       setLearningGoal(selection.goal);
       setStageId(resolvedStage);
       setHydrated(true);
@@ -285,20 +283,27 @@ export function BattleClient() {
       <div className={combatActive ? "battle-layout is-combat" : "battle-layout is-exploring"}>
         <div className="battle-main">
           <div className="battle-visual">
-            <PhaserStage stageId={stageId} battle={battle} attackSignal={attackSignal} bossAttackSignal={bossAttackSignal} specialSignal={specialSignal} onSpecialComplete={() => dispatch({ type: "SPECIAL_COMPLETE" })} onExploreComplete={() => setExplorationComplete(true)} />
+            <PhaserStage
+              stageId={stageId}
+              battle={battle}
+              attackSignal={attackSignal}
+              bossAttackSignal={bossAttackSignal}
+              specialSignal={specialSignal}
+              onSpecialComplete={() => dispatch({ type: "SPECIAL_COMPLETE" })}
+              onExploreComplete={() => dispatch({ type: "START", goalTitle: selectedGoal.unitTitle })}
+            />
             {combatActive && <BattleMomentumHUD battle={battle} />}
             <div className={learningFeedback ? "battle-message has-feedback" : "battle-message"} role="status" aria-live="polite"><span className="guide-avatar">{incomingAttackPrompt ? "🛡️" : "⚡"}</span><div className="battle-message-copy"><strong>{incomingAttackPrompt ?? battle.message}</strong>{learningFeedback ? <small>{learningFeedback.title} {learningFeedback.explanation}</small> : incomingAttackPrompt ? <small>{activeBossWarning && !activeBossWarning.incoming ? `${activeBossWarning.paceLabel} · ` : ""}정답이면 자동 회피 후 반격! 오답이면 보호막이 공격을 받아요.</small> : null}</div></div>
           </div>
-          <section className="mission-panel">
-            {combatActive && <div className="battle-mission-steps" aria-label={`학습 결계 ${Math.min(3, battle.completedMissionIds.length)}/3 완료`}><span className={battle.completedMissionIds.length >= 1 ? "done" : "current"}>발견</span><span className={battle.completedMissionIds.length >= 2 ? "done" : battle.completedMissionIds.length === 1 ? "current" : ""}>연결</span><span className={battle.completedMissionIds.length >= 3 ? "done" : battle.completedMissionIds.length === 2 ? "current" : ""}>마무리</span></div>}
-            {battle.battlePhase === "INTRO" && <div className="intro-panel"><span className="mission-kind">{stageMap.title}</span><h2>{explorationComplete ? `${stageMap.boss.name} 앞에 도착했어!` : stageMap.objectiveCopy}</h2><p>{explorationComplete ? `${selectedGoal.unitTitle}의 힘으로 혼란을 풀 준비가 됐어요.` : `캐릭터를 움직여 ${stageMap.collectionLabel} ${stageMap.collectibles.length}개를 모아 관문으로 이동하세요.`}</p><button className="primary-button wide" disabled={!explorationComplete} onClick={() => dispatch({ type: "START", goalTitle: selectedGoal.unitTitle })}>{explorationComplete ? "학습 작전 시작" : "탐험 임무를 마치면 작전이 열려요"}</button></div>}
+          {combatActive && <section className="mission-panel">
+            <div className="battle-mission-steps" aria-label={`학습 결계 ${Math.min(3, battle.completedMissionIds.length)}/3 완료`}><span className={battle.completedMissionIds.length >= 1 ? "done" : "current"}>발견</span><span className={battle.completedMissionIds.length >= 2 ? "done" : battle.completedMissionIds.length === 1 ? "current" : ""}>연결</span><span className={battle.completedMissionIds.length >= 3 ? "done" : battle.completedMissionIds.length === 2 ? "current" : ""}>마무리</span></div>
             {battle.battlePhase === "PLAYER_MANIPULATE" && (openingMission.kind === "blocks" ? <TenFrame {...openingMission} onComplete={() => { setLearningFeedback(buildCorrectFeedback(stageQuestions[0], battle.currentQuestionRetried || battle.currentQuestionHintUsed)); dodgeAndCounter(0, "strong"); dispatch({ type: "MANIPULATION_SUCCESS", missionId: stageQuestions[0].id }); }} /> : <div className="choice-mission"><span className="mission-kind">{openingMission.title}</span><h2>{openingMission.prompt}</h2><p>{openingMission.copy}</p><div className="choice-grid">{openingMission.choices.map((choice) => <button key={choice} onClick={() => { if (choice !== openingAnswer) { showRetry(stageQuestions[0]); return; } setLearningFeedback(buildCorrectFeedback(stageQuestions[0], battle.currentQuestionRetried || battle.currentQuestionHintUsed)); dodgeAndCounter(0, "strong"); dispatch({ type: "MANIPULATION_SUCCESS", missionId: stageQuestions[0].id }); }}>{choice}</button>)}</div></div>)}
             {battle.battlePhase === "PLAYER_ANSWER" && <div className="choice-mission"><span className="mission-kind">{answerPrompt.title}</span><h2>{answerPrompt.prompt}</h2><p>{answerPrompt.copy}</p><div className="choice-grid">{answerPrompt.choices.map((choice) => <button key={choice} onClick={() => chooseAnswer(choice, stageQuestions[1], stageQuestions[1].id)}>{choice}</button>)}</div><div className="help-row">{supportiveMessages.slice(0, battle.players.length === 2 ? 4 : 2).map((message) => <button type="button" key={message} onClick={() => showHint(stageQuestions[1])}>{message}</button>)}</div></div>}
             {battle.battlePhase === "SPECIAL_CHALLENGE" && <div className="choice-mission deep"><span className="mission-kind">{battle.players.length === 2 ? "함께 작전 세우기" : "스페셜 작전"}</span><h2>{deepMission.prompt}</h2><p>{deepMission.copy}</p><div className="choice-grid vertical">{deepMission.choices.map((choice) => <button key={choice} onClick={() => chooseAnswer(choice, stageQuestions[2], stageQuestions[2].id, true)}>{choice}</button>)}</div><button className="hint-button" onClick={() => showHint(stageQuestions[2])}>작전 힌트 보기</button></div>}
             {battle.battlePhase === "SPECIAL_READY" && <div className="special-ready"><span className="mission-kind">필살기 준비</span><h2>{battle.players.length === 2 ? "민즈 트윈 드래곤 브레이크" : "민즈 썬더 드래곤 브레이크"}</h2><p>{battle.players.length === 2 ? `두 준비 버튼을 ${secondsLeft}초 안에 모두 눌러 줘. 시간이 지나도 다시 할 수 있어.` : "준비 버튼을 누르면 번개 드래곤이 나타나!"}</p><div className={battle.players.length === 2 ? "ready-buttons" : "ready-buttons solo"}>{battle.players.map((player, index) => <button key={player.id} className={player.ready ? "ready-button pressed" : `ready-button player-${index + 1}`} disabled={player.ready} onClick={() => pressReady(index)}><span>{player.ready ? "준비 완료" : `${player.displayName} 준비`}</span><small>{index === 0 ? "번개 힘" : "불꽃 힘"}</small></button>)}</div>{readyCountdownActive && battle.players.some((player) => !player.ready) && <div className="countdown" aria-live="polite">함께 누를 시간 {secondsLeft}</div>}</div>}
             {battle.battlePhase === "SPECIAL_CUTSCENE" && <div className="cutscene-note"><div className="energy-spinner" /><h2>{battle.players.length === 2 ? "두 힘이 하나로 합쳐지는 중!" : "번개 에너지가 모이는 중!"}</h2><p>눈이 편안하도록 빠른 번쩍임 없이 힘차게 연출하고 있어.</p></div>}
             {battle.battlePhase === "RESULT" && <div className="battle-result"><span className="victory-mark">★</span><span className="mission-kind">모험 완료</span><h2>{withJosa(stageMap.boss.name, "과", "와")} 친구가 됐어!</h2><p>{stageMap.boss.resolveCopy}</p><div className="reward-row"><span>🪙 {battle.players.length === 2 ? 60 : 35} 코인</span><span>🛡️ 용기 배지</span>{battle.players.length === 2 && <span>🤝 우정 코인</span>}</div><Link href="/result" className="primary-button wide">보물과 오늘의 생각 보기</Link></div>}
-          </section>
+          </section>}
         </div>
         <GaugePanel battle={battle} bossName={stageMap.boss.name} />
       </div>

@@ -9,6 +9,7 @@ function bossPhaseLabel(battle: CoopBattleState) {
 
 export function BattleMomentumHUD({ battle }: { battle: CoopBattleState }) {
   const completed = Math.min(3, battle.completedMissionIds.length);
+  const activePlayer = battle.players[battle.activePlayerIndex] ?? battle.players[0];
 
   return (
     <aside className="battle-momentum-hud" aria-label={`학습 결계 ${completed}/3, ${bossPhaseLabel(battle)}`}>
@@ -16,7 +17,8 @@ export function BattleMomentumHUD({ battle }: { battle: CoopBattleState }) {
         {["발견", "연결", "마무리"].map((step, index) => <span className={index < completed ? "is-lit" : index === completed ? "is-current" : ""} key={step} />)}
       </div>
       <strong key={`${battle.successfulDodges}-${battle.failedDodges}`}>회피 연속 {battle.dodgeStreak}</strong>
-      <span>성공 {battle.successfulDodges} · {bossPhaseLabel(battle)}</span>
+      <span className="battle-compact-health">HP {activePlayer.hp} · 방어 {activePlayer.shield}</span>
+      <span>보스 {battle.bossHp}/{battle.bossMaxHp} · {bossPhaseLabel(battle)}</span>
     </aside>
   );
 }

@@ -1,5 +1,14 @@
 import type { BossAttackSignal, CoopBattleState } from "@/types/battle";
 
+export type ExplorationInteraction = {
+  npcId: string;
+  kind: "talk" | "chest" | "secret" | "boss";
+  label: string;
+  hint: string;
+  xPercent: number;
+  yPercent: number;
+};
+
 type GameEventMap = {
   sync: CoopBattleState;
   attack: { playerIndex: number; kind: "strong" | "magic" };
@@ -10,7 +19,7 @@ type GameEventMap = {
   dash: undefined;
   explorationProgress: { collected: number; total: number; bridgeCrossed?: boolean; secretDiscovered?: boolean; npcTalked?: boolean; chestOpened?: boolean; nextDirection?: "왼쪽" | "오른쪽" | "위쪽" | "아래쪽" | "도착" };
   explorationComplete: undefined;
-  interactionAvailable: { npcId: string; label: string } | null;
+  interactionAvailable: ExplorationInteraction | null;
   interact: { npcId: string };
   sceneReady: undefined;
 };

@@ -213,6 +213,22 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .rpg-loading-overlay { position: absolute; inset: 0; z-index: 5; display: grid; place-content: center; gap: 7px; text-align: center; color: #fff4b5; background: radial-gradient(circle at 50% 40%,#14506b,#061c30 72%); }.rpg-loading-overlay strong { font-size: clamp(18px,3vw,30px); }.rpg-loading-overlay span { color: #b8dce6; font-size: 13px; }
 .rpg-play-stage canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .rpg-interact-button { min-height: 46px; margin-top: 8px; padding: 8px 14px; border: 2px solid #fff0a8; border-radius: 12px; color: #092237; background: linear-gradient(#fff3b0,#ffca4b); box-shadow: 0 5px 0 #8d530c; font-weight: 1000; cursor: pointer; }
+.rpg-play-stage .phaser-stage { isolation: isolate; touch-action: none; }
+.rpg-play-stage .phaser-stage canvas { contain: strict; touch-action: none; }
+.rpg-quest-overlay { max-width: min(42%,360px); padding: 9px 12px; position: absolute; z-index: 11; top: 12px; left: 12px; display: grid; gap: 2px; pointer-events: none; border: 1px solid rgba(117,224,243,.55); border-radius: 12px; color: #f3fcff; background: rgba(4,28,45,.86); box-shadow: 0 7px 22px rgba(0,0,0,.32); backdrop-filter: blur(7px); }
+.rpg-quest-overlay span { color: #70e3f5; font: 900 9px/1.2 Arial,sans-serif; letter-spacing: .1em; }
+.rpg-quest-overlay strong { color: #fff2ad; font: 950 14px/1.25 "Malgun Gothic",sans-serif; }
+.rpg-quest-overlay small { color: #b7d4dc; font: 750 9px/1.35 "Malgun Gothic",sans-serif; }
+.rpg-world-object-prompt { min-width: 190px; max-width: min(300px,70%); min-height: 58px; padding: 8px 12px; position: absolute; z-index: 14; display: grid; grid-template-columns: 34px minmax(0,1fr); align-items: center; gap: 9px; transform: translate(-50%,-100%); border: 2px solid #fff1a3; border-radius: 16px; color: #eefcff; background: linear-gradient(135deg,rgba(5,35,54,.96),rgba(9,73,92,.96)); box-shadow: 0 0 0 4px rgba(255,226,103,.16),0 12px 30px rgba(0,0,0,.38); cursor: pointer; text-align: left; animation: world-prompt-breathe 1.25s ease-in-out infinite alternate; }
+.rpg-world-object-prompt:hover,.rpg-world-object-prompt:focus-visible { outline: 3px solid #78e8fa; outline-offset: 3px; transform: translate(-50%,-100%) scale(1.03); }
+.rpg-world-object-prompt > span:last-child { min-width: 0; display: grid; gap: 2px; }
+.rpg-world-object-prompt strong { overflow: hidden; color: #fff3ad; font: 950 13px/1.25 "Malgun Gothic",sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.rpg-world-object-prompt small { color: #c0dce3; font: 700 9px/1.25 "Malgun Gothic",sans-serif; }
+.rpg-prompt-key { width: 32px; height: 32px; display: grid; place-items: center; border: 2px solid #fff2a6; border-radius: 10px; color: #092438; background: #ffd65e; box-shadow: inset 0 -3px 0 #d18b16; font: 1000 15px/1 Arial,sans-serif; }
+.rpg-world-object-prompt.is-secret { border-color: #b9ff91; background: linear-gradient(135deg,rgba(11,52,42,.97),rgba(33,102,62,.96)); }
+.rpg-world-object-prompt.is-boss { border-color: #ffb35f; background: linear-gradient(135deg,rgba(65,20,22,.97),rgba(126,47,25,.96)); }
+.rpg-world-dpad { margin: 0; position: absolute; z-index: 13; bottom: 14px; left: 14px; transform: scale(.82); transform-origin: left bottom; opacity: .9; filter: drop-shadow(0 9px 15px rgba(0,0,0,.35)); }
+@keyframes world-prompt-breathe { from { box-shadow: 0 0 0 2px rgba(255,226,103,.1),0 10px 24px rgba(0,0,0,.34); } to { box-shadow: 0 0 0 7px rgba(255,226,103,.2),0 14px 32px rgba(0,0,0,.42); } }
 .touch-dpad { width: 228px; height: 112px; }.touch-dpad button { width: 54px; height: 54px; font-size: 18px; }.dpad-up { left: 58px; top: 0; }.dpad-left { left: 0; top: 58px; }.dpad-right { left: 116px; right: auto; top: 58px; }.dpad-down { left: 58px; top: 58px; }
 .touch-dpad .dpad-dash { width: 52px; height: 38px; right: 0; top: 8px; border-color: #ffdc72; color: #092237; background: linear-gradient(#fff3b0,#ffca4b); font-size: 10px; font-weight: 1000; }
 .map-boss-unit.threat-1 { width: min(25%,150px); height: auto; filter: drop-shadow(0 12px 14px rgba(0,0,0,.35)); }.map-boss-unit.threat-2 { width: min(31%,200px); height: auto; }.map-boss-unit.threat-3 { width: min(42%,310px); height: auto; }
@@ -252,7 +268,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .battle-layout.is-combat .player-gauges { grid-column: 1 / -1; }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   body:has(.battle-page.combat-mode) .app-header { display: none; }
   .battle-page.combat-mode { padding: 0 8px 40px; }
   .battle-page.combat-mode > .adventure-progress,.battle-page.combat-mode > .battle-topline { display: none; }
@@ -365,4 +381,44 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 @media (max-height: 520px) and (orientation: landscape) {
   .battle-page,.game-room-page,.rpg-world-shell,.loot-result-page,.game-inventory-page { padding-right: max(10px,var(--safe-right)); padding-left: max(10px,var(--safe-left)); }
+}
+
+/* Roblox-style in-world interaction and one-screen mobile combat. */
+@media (max-width: 900px) {
+  body:has(.battle-page.explore-mode) { overflow: hidden; background: #061522; }
+  body:has(.battle-page.explore-mode) .app-header { display: none; }
+  .battle-page.explore-mode { width: 100%; height: 100dvh; min-height: 100dvh; padding: 0; position: fixed; z-index: 100; inset: 0; overflow: hidden; background: #061522; }
+  .battle-page.explore-mode > .adventure-progress,.battle-page.explore-mode > .battle-topline { display: none; }
+  .battle-layout.is-exploring,.battle-layout.is-exploring .battle-main,.battle-layout.is-exploring .battle-visual,.battle-layout.is-exploring .rpg-play-stage,.battle-layout.is-exploring .rpg-play-stage .phaser-stage { width: 100%; height: 100%; min-height: 0; }
+  .battle-layout.is-exploring { display: block; }
+  .battle-layout.is-exploring .rpg-play-stage .phaser-stage { aspect-ratio: auto; border: 0; border-radius: 0; }
+  .battle-layout.is-exploring .battle-message,.battle-layout.is-exploring > .gauge-panel { display: none; }
+  .rpg-quest-overlay { max-width: 55%; padding: 7px 9px; top: 8px; left: 8px; }
+  .rpg-quest-overlay strong { font-size: 12px; }
+  .rpg-quest-overlay small { display: none; }
+  .rpg-world-object-prompt { min-width: 164px; min-height: 52px; max-width: 66%; padding: 7px 9px; grid-template-columns: 30px minmax(0,1fr); }
+  .rpg-world-object-prompt strong { font-size: 11px; }
+  .rpg-world-object-prompt small { font-size: 8px; }
+  .rpg-prompt-key { width: 28px; height: 28px; font-size: 13px; }
+  .rpg-world-dpad { bottom: 8px; left: 8px; transform: scale(.82); opacity: .84; }
+
+  body:has(.battle-page.combat-mode) { overflow: hidden; background: #061522; }
+  .battle-page.combat-mode { width: 100%; height: 100dvh; min-height: 100dvh; padding: 0 8px; position: fixed; z-index: 100; inset: 0; overflow: hidden; }
+  .battle-layout.is-combat,.battle-layout.is-combat .battle-main { height: 100%; min-height: 0; }
+  .battle-layout.is-combat .battle-main { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: 47dvh 53dvh; gap: 0; }
+  .battle-layout.is-combat .battle-visual { height: 47dvh; min-height: 0; position: relative; top: auto; padding-top: max(3px,var(--safe-top)); overflow: hidden; display: grid; grid-template-rows: minmax(0,1fr) auto auto; box-shadow: 0 8px 18px rgba(2,16,27,.34); }
+  .battle-layout.is-combat .rpg-play-stage,.battle-layout.is-combat .rpg-play-stage .phaser-stage { min-height: 0; height: 100%; }
+  .battle-layout.is-combat .rpg-play-stage .phaser-stage { aspect-ratio: auto; }
+  .battle-layout.is-combat .battle-momentum-hud { width: calc(100% - 10px); min-height: 26px; margin: 0 auto; border-radius: 0 0 10px 10px; }
+  .battle-layout.is-combat .battle-message { min-height: 48px; max-height: 58px; margin: 4px 5px 5px; padding: 6px 8px; overflow: hidden; }
+  .battle-layout.is-combat .mission-panel { height: 53dvh; min-height: 0; margin: 0; padding: 10px 9px max(16px,var(--safe-bottom)); overflow-y: auto; overscroll-behavior: contain; border-radius: 14px 14px 0 0; box-shadow: inset 0 1px 0 #dce9ec; }
+  .battle-layout.is-combat > .gauge-panel { display: none; }
+  .battle-layout.is-combat .choice-mission h2,.battle-layout.is-combat .special-ready h2,.battle-layout.is-combat .battle-result h2 { font-size: clamp(18px,5.4vw,22px); }
+  .battle-layout.is-combat .choice-grid.vertical { gap: 7px; margin: 9px 0; }
+  .battle-layout.is-combat .choice-grid.vertical button { min-height: 44px; }
+  .battle-compact-health { color: #ffeda0 !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rpg-world-object-prompt { animation: none; }
 }

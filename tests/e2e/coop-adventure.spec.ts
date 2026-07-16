@@ -15,8 +15,11 @@ async function finishExploration(page: import("@playwright/test").Page) {
   await moveRight.dispatchEvent("pointerdown", { pointerId: 2, pointerType: "touch" });
   await page.waitForTimeout(3_700);
   await moveRight.dispatchEvent("pointerup", { pointerId: 2, pointerType: "touch" });
-  await expect(page.getByRole("button", { name: "학습 작전 시작" })).toBeEnabled();
-  await page.getByRole("button", { name: "학습 작전 시작" }).click();
+  const secretPrompt = page.getByRole("button", { name: /숨은 별길 조사하기/ });
+  if (await secretPrompt.isVisible()) await secretPrompt.click();
+  const bossPrompt = page.getByRole("button", { name: /잠든 씨앗 슬라임에게 도전하기/ });
+  await expect(bossPrompt).toBeVisible();
+  await bossPrompt.click();
 }
 
 async function saveSetupAndOpenWorld(page: import("@playwright/test").Page) {
@@ -38,12 +41,21 @@ test("같은 기기 2인 협동 전투와 새로고침 저장", async ({ page },
   await finishExploration(page);
   await expect(page.getByTestId("phaser-stage")).toBeVisible();
   await page.waitForTimeout(500);
+  if ((page.viewportSize()?.width ?? 999) <= 900) {
+    const stageBox = await page.getByTestId("phaser-stage").boundingBox();
+    const missionBox = await page.locator(".mission-panel").boundingBox();
+    expect(stageBox).not.toBeNull();
+    expect(missionBox).not.toBeNull();
+    expect(stageBox!.y).toBeGreaterThanOrEqual(0);
+    expect(missionBox!.y).toBeGreaterThan(stageBox!.y);
+    expect(missionBox!.y).toBeLessThan(page.viewportSize()!.height);
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: path.join(process.cwd(), "output", "playwright", `coop-battle-${testInfo.project.name}.png`), fullPage: true });
   await expect(page.getByText(/씨앗 파동 (준비|접근)/)).toBeVisible();
   await page.getByRole("button", { name: "5", exact: true }).click();
   await expect(page.getByText(/보호막이 막아 줬어/)).toBeVisible();
-  await expect(page.getByText("보호막 17")).toBeVisible();
+  await expect(page.getByText(/방어 17/)).toBeVisible();
   await page.getByRole("button", { name: "50", exact: true }).click();
   await expect(page.getByText(/50, 회피 성공!/)).toBeVisible();
   await page.screenshot({ path: path.join(process.cwd(), "output", "playwright", `learning-feedback-${testInfo.project.name}.png`), fullPage: false });
@@ -122,7 +134,7 @@ test("유아수학 단계를 고르고 연령별 전투를 시작한다", async 
   await page.getByRole("button", { name: "이 목표로 모험 시작" }).first().click();
   await expect(page).toHaveURL(/\/world$/);
   await page.goto("/battle");
-  await expect(page.getByText(/유아 5세 · 위협도/)).toBeVisible();
+  await expect(page.getByText(/유아 5세 · 목표/)).toBeVisible();
   await finishExploration(page);
   await expect(page.getByRole("heading", { name: "토끼가 3마리 있어요. 모두 몇 마리일까요?" })).toBeVisible();
 });
@@ -138,7 +150,7 @@ test("터치 취소 후 캐릭터 이동이 고착되지 않는다", async ({ pa
   await page.waitForTimeout(200);
   await moveRight.dispatchEvent("pointercancel", { pointerId: 7, pointerType: "touch" });
   await page.waitForTimeout(2_000);
-  await expect(page.locator(".rpg-quest-chip strong")).toHaveText("길잡이와 대화하기");
+  await expect(page.locator(".rpg-quest-overlay strong")).toHaveText("길잡이와 대화하기");
 });
 
 test("주별 목표를 진단하고 이미 아는 목표를 건너뛸 수 있다", async ({ page }) => {

@@ -41,8 +41,14 @@ describe("BattleClient learning goal binding", () => {
   async function finishExplorationAndStart() {
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "탐험 완료" }));
-    await user.click(screen.getByRole("button", { name: "학습 작전 시작" }));
   }
+
+  it("수호자 상호작용 직후 별도 시작 버튼 없이 전투 문제가 열린다", async () => {
+    render(<BattleClient />);
+    await finishExplorationAndStart();
+    expect(await screen.findByRole("heading", { name: "352에서 5가 나타내는 값은?" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "학습 작전 시작" })).not.toBeInTheDocument();
+  });
 
   it("TenFrame 비호환 수학 목표는 선택 목표의 첫 문항으로 시작한다", async () => {
     storeElementaryGoal("elementary-2-s2-math-w8");

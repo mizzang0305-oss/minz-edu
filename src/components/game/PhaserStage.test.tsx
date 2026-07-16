@@ -208,6 +208,42 @@ describe("PhaserStage", () => {
     view.unmount();
   });
 
+  it("가까운 대상의 상호작용 버튼을 게임 화면 위에 표시하고 직접 실행한다", async () => {
+    const battle = createBattleState(DEFAULT_SETTINGS);
+    const interactions: string[] = [];
+    const offInteract = gameEventBridge.on("interact", ({ npcId }) => interactions.push(npcId));
+    const view = render(
+      <PhaserStage
+        battle={battle}
+        attackSignal={null}
+        specialSignal={0}
+        onSpecialComplete={vi.fn()}
+        onExploreComplete={vi.fn()}
+        stageId="number-forest"
+      />,
+    );
+
+    await waitFor(() => expect(mocks.createPhaserGame).toHaveBeenCalledOnce());
+    act(() => gameEventBridge.emit("sceneReady", undefined));
+    act(() => gameEventBridge.emit("interactionAvailable", {
+      npcId: "guide-lumi",
+      kind: "talk",
+      label: "숲길잡이 루미에게 말 걸기",
+      hint: "화면 버튼 또는 E·Enter 키",
+      xPercent: 24,
+      yPercent: 52,
+    }));
+
+    const prompt = screen.getByRole("button", { name: /숲길잡이 루미에게 말 걸기/ });
+    expect(prompt.closest(".phaser-stage")).not.toBeNull();
+    expect(prompt).toHaveStyle({ left: "24%", top: "52%" });
+    fireEvent.click(prompt);
+    expect(interactions).toEqual(["guide-lumi"]);
+
+    offInteract();
+    view.unmount();
+  });
+
   it("보스 공격 결과를 Phaser 장면으로 한 번 전달한다", async () => {
     const battle = createBattleState(DEFAULT_SETTINGS);
     const bossAttacks: Array<{ targetPlayerIndex: number; outcome: string; attackName: string }> = [];
