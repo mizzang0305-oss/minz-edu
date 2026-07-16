@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PhaserStage } from "@/components/game/PhaserStage";
+import { LandscapePlayGate } from "@/components/game/LandscapePlayGate";
 import { TenFrame } from "@/components/learning/TenFrame";
 import { AdventureProgress } from "@/components/common/AdventureProgress";
 import { GaugePanel } from "./GaugePanel";
@@ -306,6 +307,7 @@ export function BattleClient() {
             {battle.battlePhase === "RESULT" && <div className="battle-result"><span className="victory-mark">★</span><span className="mission-kind">모험 완료</span><h2>{withJosa(stageMap.boss.name, "과", "와")} 친구가 됐어!</h2><p>{stageMap.boss.resolveCopy}</p><div className="reward-row"><span>🪙 {battle.players.length === 2 ? 60 : 35} 코인</span><span>🛡️ 용기 배지</span>{battle.players.length === 2 && <span>🤝 우정 코인</span>}</div><Link href="/result" className="primary-button wide">보물과 오늘의 생각 보기</Link></div>}
               </section>}
             </div>
+            <LandscapePlayGate />
           </div>
         </div>
         <GaugePanel battle={battle} bossName={stageMap.boss.name} />

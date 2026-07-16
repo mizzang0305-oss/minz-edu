@@ -43,6 +43,7 @@ const maps = [
     obstacles: [{ id: "tree-north-1", kind: "tree", x: 330, y: 220, width: 76, height: 54 }, { id: "tree-south-1", kind: "tree", x: 350, y: 355, width: 78, height: 48 }, { id: "rock-north-1", kind: "rock", x: 570, y: 215, width: 70, height: 45 }, { id: "rock-south-1", kind: "rock", x: 555, y: 365, width: 82, height: 44 }, { id: "river", kind: "water", x: 485, y: 270, width: 92, height: 150 }],
     bridge: { id: "forest-bridge", x: 485, y: 292, width: 92, height: 58 },
     secret: { id: "lower-hidden-path", x: 610, y: 360, width: 145, height: 55 },
+    battleSafeArea: { id: "battle-hud-safe-area", x: 64, y: 96, width: 800, height: 266 },
   },
   {
     stageId: "word-island",
@@ -62,6 +63,7 @@ const maps = [
     obstacles: [{ id: "island-rock-1", kind: "rock", x: 335, y: 210, width: 74, height: 56 }, { id: "island-rock-2", kind: "rock", x: 350, y: 370, width: 74, height: 44 }, { id: "ink-stream", kind: "water", x: 500, y: 250, width: 86, height: 165 }, { id: "island-tree", kind: "tree", x: 610, y: 360, width: 76, height: 48 }],
     bridge: { id: "word-bridge", x: 500, y: 300, width: 86, height: 60 },
     secret: { id: "shell-library", x: 625, y: 350, width: 135, height: 58 },
+    battleSafeArea: { id: "battle-hud-safe-area", x: 64, y: 96, width: 800, height: 266 },
   },
   {
     stageId: "story-castle",
@@ -81,6 +83,7 @@ const maps = [
     obstacles: [{ id: "castle-pillar-1", kind: "rock", x: 325, y: 210, width: 76, height: 62 }, { id: "castle-pillar-2", kind: "rock", x: 350, y: 365, width: 76, height: 46 }, { id: "memory-moat", kind: "water", x: 510, y: 250, width: 90, height: 165 }, { id: "archive-tree", kind: "tree", x: 620, y: 360, width: 78, height: 50 }],
     bridge: { id: "castle-drawbridge", x: 510, y: 300, width: 90, height: 60 },
     secret: { id: "hidden-archive", x: 630, y: 350, width: 130, height: 60 },
+    battleSafeArea: { id: "battle-hud-safe-area", x: 64, y: 96, width: 800, height: 266 },
   },
 ];
 
@@ -115,7 +118,11 @@ function buildObjects(config) {
     ...config.collectibles.map((item) => pointObject(next(), item.id, "collectible", item.x, item.y, [property("value", item.value)])),
     ...config.npcs.map((item) => pointObject(next(), item.id, "npc", item.x, item.y)),
   ];
-  const zones = [rectObject(next(), config.bridge.id, "bridge", config.bridge), rectObject(next(), config.secret.id, "secret_area", config.secret)];
+  const zones = [
+    rectObject(next(), config.bridge.id, "bridge", config.bridge),
+    rectObject(next(), config.secret.id, "secret_area", config.secret),
+    rectObject(next(), config.battleSafeArea.id, "battle_safe_area", config.battleSafeArea),
+  ];
   return { collision, entities, zones };
 }
 

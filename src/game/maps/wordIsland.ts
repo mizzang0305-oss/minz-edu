@@ -21,6 +21,7 @@ export const WORD_ISLAND_MAP: ExplorationMapDefinition = {
   ],
   bridge: { id: "word-bridge", x: 500, y: 300, width: 86, height: 60, frames: [1062, 1063, 1064], label: "단어 문" },
   secretArea: { id: "shell-library", x: 625, y: 350, width: 135, height: 58, rewardLabel: "조개 도서관" },
+  battleSafeArea: { id: "battle-hud-safe-area", x: 64, y: 96, width: 800, height: 266 },
   portal: { x: 775, y: 270 },
   boss: { id: "word-mimic", x: 824, y: 282, name: "단어 먹보 미믹", attackName: "낱말 이빨", threatTier: 2, asset: "/game-assets/superpowers-rpg/boss-mimic.png", exploreSize: { width: 231, height: 172 }, resolveCopy: "뒤섞인 낱말을 돌려주고 이야기 성의 문장을 건넸어요." },
   chest: { id: "rune-chest", x: 230, y: 360, label: "룬 상자 열기", rewardLabel: "글자 룬 주머니" },

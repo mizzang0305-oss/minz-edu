@@ -22,6 +22,7 @@ export const NUMBER_FOREST_MAP: ExplorationMapDefinition = {
   ],
   bridge: { id: "forest-bridge", x: 485, y: 292, width: 92, height: 58, frames: [1062, 1063, 1064], label: "빛나는 다리" },
   secretArea: { id: "lower-hidden-path", x: 610, y: 360, width: 145, height: 55, rewardLabel: "숨은 별길" },
+  battleSafeArea: { id: "battle-hud-safe-area", x: 64, y: 96, width: 800, height: 266 },
   portal: { x: 775, y: 270 },
   boss: { id: "seed-slime", x: 828, y: 288, name: "잠든 씨앗 슬라임", attackName: "씨앗 파동", threatTier: 1, asset: "/game-assets/superpowers-rpg/boss-slime.png", exploreSize: { width: 141, height: 107 }, resolveCopy: "숫자 규칙을 되찾고 단어섬으로 가는 열쇠를 건넸어요." },
   chest: { id: "forest-chest", x: 235, y: 360, label: "숲 보물 상자 열기", rewardLabel: "숫자 탐험 나침반" },

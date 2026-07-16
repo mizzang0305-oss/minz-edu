@@ -2234,6 +2234,18 @@
           "rotation": 0,
           "visible": true,
           "properties": []
+        },
+        {
+          "id": 17,
+          "name": "battle-hud-safe-area",
+          "class": "battle_safe_area",
+          "x": 64,
+          "y": 96,
+          "width": 800,
+          "height": 266,
+          "rotation": 0,
+          "visible": true,
+          "properties": []
         }
       ]
     }

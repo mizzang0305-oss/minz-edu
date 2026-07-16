@@ -20,7 +20,7 @@ function validMap() {
       { name: "decor", type: "tilelayer", data: Array(12).fill(0) },
       { name: "collision", type: "objectgroup", objects: [rect(1, "rock-1", "obstacle", 16, 0)] },
       { name: "entities", type: "objectgroup", objects: [point(2, "spawn", "player_spawn", 1, 1), point(3, "portal", "portal", 60, 40), point(4, "boss", "boss", 62, 42), point(5, "rune", "collectible", 20, 20), point(6, "guide", "npc", 10, 20)] },
-      { name: "zones", type: "objectgroup", objects: [rect(7, "bridge", "bridge", 32, 16), rect(8, "secret", "secret_area", 0, 32)] },
+      { name: "zones", type: "objectgroup", objects: [rect(7, "bridge", "bridge", 32, 16), rect(8, "secret", "secret_area", 0, 32), rect(9, "battle-safe", "battle_safe_area", 0, 0, 96, 64)] },
     ],
   };
 }
@@ -33,6 +33,7 @@ describe("Tiled map validator", () => {
       expect(map.tilewidth).toBe(32);
       expect(map.tileheight).toBe(32);
       expect(map.layers.filter((layer: { type: string }) => layer.type === "tilelayer").map((layer: { name: string }) => layer.name)).toEqual(["ground", "paths", "water", "decor"]);
+      expect(map.layers.find((layer: { name: string }) => layer.name === "zones").objects.filter((object: { class: string }) => object.class === "battle_safe_area")).toHaveLength(1);
       expect(validateTiledMap(map)).toEqual([]);
     });
   });

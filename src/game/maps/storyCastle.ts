@@ -21,6 +21,7 @@ export const STORY_CASTLE_MAP: ExplorationMapDefinition = {
   ],
   bridge: { id: "castle-drawbridge", x: 510, y: 300, width: 90, height: 60, frames: [1062, 1063, 1064], label: "기억의 도개교" },
   secretArea: { id: "hidden-archive", x: 630, y: 350, width: 130, height: 60, rewardLabel: "숨은 기록실" },
+  battleSafeArea: { id: "battle-hud-safe-area", x: 64, y: 96, width: 800, height: 266 },
   portal: { x: 780, y: 270 },
   boss: { id: "logic-guardian", x: 835, y: 285, name: "논리의 장갑 수호자", attackName: "논리 충격파", threatTier: 3, asset: "/game-assets/duelyst/number-guardian.webp", exploreSize: { width: 270, height: 195 }, resolveCopy: "주장과 근거를 인정하고 영웅의 이야기 기록을 완성했어요." },
   chest: { id: "archive-chest", x: 235, y: 360, label: "기록 상자 열기", rewardLabel: "증언 기록판" },

@@ -22,6 +22,7 @@ type GameEventMap = {
   interactionAvailable: ExplorationInteraction | null;
   interact: { npcId: string };
   sceneReady: undefined;
+  viewportChanged: { width: number; height: number };
 };
 
 type Listener<K extends keyof GameEventMap> = (payload: GameEventMap[K]) => void;

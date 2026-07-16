@@ -80,6 +80,10 @@ export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, spe
     const offProgress = gameEventBridge.on("explorationProgress", (value) => setProgress((current) => ({ ...current, ...value })));
     const offReady = gameEventBridge.on("sceneReady", () => {
       gameEventBridge.emit("sync", battleRef.current);
+      gameEventBridge.emit("viewportChanged", {
+        width: window.visualViewport?.width ?? window.innerWidth,
+        height: window.visualViewport?.height ?? window.innerHeight,
+      });
       setReady(true);
     });
     const offInteraction = gameEventBridge.on("interactionAvailable", setInteraction);
@@ -108,7 +112,13 @@ export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, spe
       if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
       resizeFrame = window.requestAnimationFrame(() => {
         resizeFrame = null;
-        if (active) gameRef.current?.scale.refresh();
+        if (active) {
+          gameRef.current?.scale.refresh();
+          gameEventBridge.emit("viewportChanged", {
+            width: window.visualViewport?.width ?? window.innerWidth,
+            height: window.visualViewport?.height ?? window.innerHeight,
+          });
+        }
       });
     };
     const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(refreshScale);

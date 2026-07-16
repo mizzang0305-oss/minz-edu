@@ -20,6 +20,7 @@ export type ExplorationMapDefinition = {
   obstacles: ExplorationObstacle[];
   bridge: ExplorationRect & { id: string; frames: number[]; label: string };
   secretArea: ExplorationRect & { id: string; rewardLabel: string };
+  battleSafeArea: ExplorationRect & { id: string };
   portal: ExplorationPoint;
   boss: ExplorationPoint & {
     id: string;

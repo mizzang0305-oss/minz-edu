@@ -4,6 +4,7 @@ import type { CoopBattleState } from "@/types/battle";
 import { getExplorationMap } from "@/game/maps/mapRegistry";
 import type { ExplorationMapDefinition, ExplorationRect, ExplorationStageId } from "@/types/exploration";
 import { movementDelta } from "@/game/systems/MovementSystem";
+import { resolveBattleFormation } from "@/game/systems/BattleFormation";
 
 type Direction = "left" | "right" | "up" | "down";
 
@@ -91,6 +92,7 @@ export class NumberForestScene extends Phaser.Scene {
   private specialActive = false;
   private specialObjects: Phaser.GameObjects.GameObject[] = [];
   private specialTimers: Phaser.Time.TimerEvent[] = [];
+  private viewport = { width: ADVENTURE_WORLD_WIDTH, height: ADVENTURE_WORLD_HEIGHT };
 
   constructor(stageId: ExplorationStageId = "number-forest") {
     super(`AdventureScene-${stageId}`);
@@ -110,6 +112,10 @@ export class NumberForestScene extends Phaser.Scene {
   create() {
     this.disposed = false;
     const { width, height } = this.scale;
+    this.viewport = {
+      width: window.visualViewport?.width ?? window.innerWidth,
+      height: window.visualViewport?.height ?? window.innerHeight,
+    };
     this.reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     this.cameras.main.roundPixels = true;
     this.cameras.main.setBounds(0, 0, ADVENTURE_WORLD_WIDTH, ADVENTURE_WORLD_HEIGHT);
@@ -164,6 +170,10 @@ export class NumberForestScene extends Phaser.Scene {
       gameEventBridge.on("move", ({ direction, active }) => active ? this.touchDirections.add(direction) : this.touchDirections.delete(direction)),
       gameEventBridge.on("dash", () => this.activateDash(this.time.now)),
       gameEventBridge.on("interact", ({ npcId }) => this.activateInteraction(npcId)),
+      gameEventBridge.on("viewportChanged", (viewport) => {
+        this.viewport = viewport;
+        if (!this.explorationActive) this.applyBattleFormation(false);
+      }),
     );
 
     const cleanup = () => {
@@ -593,21 +603,8 @@ export class NumberForestScene extends Phaser.Scene {
     });
     if (this.portalRing) this.tweens.killTweensOf(this.portalRing);
     this.portal?.setVisible(false);
-    this.players.forEach((player, index) => {
-      const x = index === 0 ? 195 : 340;
-      const y = index === 0 ? 285 : 305;
-      if (this.reducedMotion) {
-        player.sprite.setPosition(x, y);
-        player.aura.setPosition(x, y);
-      } else {
-        this.tweens.add({ targets: [player.sprite, player.aura], x, y, duration: 420, ease: "Power2" });
-      }
-      player.name.setPosition(x, y + 54);
-    });
-    const battleSizes = { 1: { width: 141, height: 107 }, 2: { width: 231, height: 172 }, 3: { width: 300, height: 217 } } as const;
-    const bossSize = battleSizes[this.map.boss.threatTier];
-    this.bossBattleAura = this.add.ellipse(735, 260, bossSize.width * 1.28, bossSize.height * 1.22, 0x67e8f9, 0.08).setStrokeStyle(4, 0x67e8f9, 0.62).setDepth(7);
-    this.bossPhaseText = this.add.text(735, Math.max(112, 260 - bossSize.height / 2 - 24), "보호막 해독 중", {
+    this.bossBattleAura = this.add.ellipse(0, 0, 1, 1, 0x67e8f9, 0.08).setStrokeStyle(4, 0x67e8f9, 0.62).setDepth(7);
+    this.bossPhaseText = this.add.text(0, 0, "보호막 해독 중", {
       fontFamily: "Malgun Gothic, Arial, sans-serif",
       fontSize: "14px",
       color: "#dffbff",
@@ -615,8 +612,29 @@ export class NumberForestScene extends Phaser.Scene {
       backgroundColor: "#08243ddd",
       padding: { x: 9, y: 5 },
     }).setOrigin(0.5).setDepth(22);
-    this.boss?.setPosition(735, 260).setDisplaySize(bossSize.width, bossSize.height).setAlpha(1);
-    this.bossName?.setPosition(735, 260 + bossSize.height / 2 + 18);
+    this.applyBattleFormation(!this.reducedMotion);
+    this.boss?.setAlpha(1);
+  }
+
+  private applyBattleFormation(animate: boolean) {
+    const formation = resolveBattleFormation(this.map.battleSafeArea, this.map.boss.threatTier, this.viewport);
+    this.players.forEach((player, index) => {
+      const target = formation.players[Math.min(index, 1)];
+      player.sprite.setDisplaySize(target.width, target.height);
+      player.aura.setDisplaySize(formation.compactLandscape ? 52 : 72, formation.compactLandscape ? 52 : 72);
+      if (animate) this.tweens.add({ targets: [player.sprite, player.aura], x: target.x, y: target.y, duration: 420, ease: "Power2" });
+      else {
+        player.sprite.setPosition(target.x, target.y);
+        player.aura.setPosition(target.x, target.y);
+      }
+      player.name.setPosition(target.x, target.y + target.height / 2 + 8);
+    });
+
+    const boss = formation.boss;
+    this.boss?.setPosition(boss.x, boss.y).setDisplaySize(boss.width, boss.height);
+    this.bossBattleAura?.setPosition(boss.x, boss.y).setDisplaySize(boss.width * 1.28, boss.height * 1.22);
+    this.bossPhaseText?.setPosition(boss.x, Math.max(this.map.battleSafeArea.y + 16, boss.y - boss.height / 2 - 24));
+    this.bossName?.setPosition(boss.x, boss.y + boss.height / 2 + 18);
   }
 
   private updateBossPhase(state: CoopBattleState) {

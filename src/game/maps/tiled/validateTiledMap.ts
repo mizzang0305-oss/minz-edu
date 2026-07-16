@@ -130,7 +130,7 @@ export function validateTiledMap(input: unknown): TiledDiagnostic[] {
   if (objects.some((object) => typeof object.name !== "string" || !object.name)) add("OBJECT_NAME_MISSING", "$.layers[*].objects[*].name", "Every object needs a stable name.");
   if (new Set(ids).size !== ids.length) add("OBJECT_ID_DUPLICATE", "$.layers[*].objects[*].name", "Object names must be unique.");
   const objectClass = (object: JsonRecord) => object.class ?? object.type;
-  const allowedClasses = new Set(["obstacle", "player_spawn", "portal", "boss", "chest", "collectible", "npc", "bridge", "secret_area"]);
+  const allowedClasses = new Set(["obstacle", "player_spawn", "portal", "boss", "chest", "collectible", "npc", "bridge", "secret_area", "battle_safe_area"]);
   objects.forEach((object, index) => {
     const kind = objectClass(object);
     if (!allowedClasses.has(String(kind))) add("OBJECT_CLASS_UNKNOWN", `$.objects[${index}].class`, `Unsupported object class: ${String(kind)}`);
@@ -144,7 +144,7 @@ export function validateTiledMap(input: unknown): TiledDiagnostic[] {
     if (!pointClass && (objectWidth <= 0 || objectHeight <= 0 || object.ellipse === true || object.polygon !== undefined || object.gid !== undefined)) add("OBJECT_SHAPE_INVALID", `$.objects[${index}]`, `${String(kind)} must be a rectangle object.`);
   });
   const counts = (kind: string) => objects.filter((object) => objectClass(object) === kind).length;
-  [["player_spawn", 1], ["portal", 1], ["boss", 1], ["bridge", 1], ["secret_area", 1]].forEach(([kind, expected]) => {
+  [["player_spawn", 1], ["portal", 1], ["boss", 1], ["bridge", 1], ["secret_area", 1], ["battle_safe_area", 1]].forEach(([kind, expected]) => {
     if (counts(String(kind)) !== expected) add("ENTITY_COUNT_INVALID", `$.objects.${String(kind)}`, `${String(kind)} must appear exactly once.`);
   });
   if (counts("collectible") < 1) add("ENTITY_COUNT_INVALID", "$.objects.collectible", "At least one collectible is required.");
