@@ -2,59 +2,45 @@
 
 ## Comparison target
 
-- Source visual truth:
-  - `C:/Users/LOVE/AppData/Local/Temp/codex-clipboard-c0a436b5-f350-44d5-99f5-ca87737f3dff.png` (stage cards with broken Korean wrapping and box sizing)
-  - `C:/Users/LOVE/AppData/Local/Temp/codex-clipboard-e62a9f3c-2926-4400-9ecf-883e508b549f.png` (result screen with text-heavy reward presentation)
-- Implementation screenshots:
-  - `output/playwright/world-stage2-unlocked-chromium.png`
-  - `output/playwright/world-stage2-unlocked-tablet-768.png`
-  - `output/playwright/world-stage2-unlocked-mobile-360.png`
-  - `output/playwright/coop-result-chromium.png`
-  - `output/playwright/coop-result-tablet-768.png`
-  - `output/playwright/coop-result-mobile-360.png`
-  - `output/playwright/inventory-chromium.png`
-  - `output/playwright/inventory-tablet-768.png`
-  - `output/playwright/inventory-mobile-360.png`
-- Viewports: Desktop Chrome, 768x1024 tablet, 360x800 phone.
-- State: Stage 1 completed, Stage 2 unlocked, cooperative rewards saved.
+- Source visual truth: `C:/Users/LOVE/AppData/Local/Temp/codex-clipboard-23b08d1a-343a-41a7-bf3b-bde633af126e.png`
+- Browser-rendered implementation: `C:/Users/LOVE/MyProjects/Minz_Edu/output/playwright/battle-command-console-478x850.png`
+- Viewports checked: 390x844 phone, 478x850 reference size, 768x1024 tablet, 1366x768 desktop.
+- State: number forest boss combat, first learning question, wrong-answer hit feedback, correct-answer dodge and next-question transition.
 
 ## Full-view comparison evidence
 
-The source and implementation images were opened together. The revised stage deck removes character-by-character Korean wrapping, keeps CTA labels intact, and changes from three compressed cards to responsive 3/2/1-column layouts. The revised result replaces symbol-led text rows with character art, reward cards, and direct inventory/stage CTAs.
+The source and implementation were opened in the same visual comparison input. The source separates the Phaser battle and the question with a large white page gap. The implementation keeps the map, momentum HUD, boss warning, question, and answer controls inside one navy game frame. At 390x844 the page scroll size equals the viewport, and the command console ends inside the game frame.
 
 ## Focused region comparison evidence
 
-- Stage CTA region: `다시 도전`, `단어섬 출정`, and supporting copy remain readable inside their cards at desktop and tablet widths.
-- Result reward region: each reward has a real raster character/guardian asset, visible rarity, name, and source.
-- Mobile header: `보물 가방` remains visible at 360px; only the lower-priority protector link is collapsed.
-- Inventory region: reward imagery, count, and next-action controls remain inside the viewport without horizontal overflow.
+- Battle-to-question boundary: the white page break is removed; the boss warning flows directly into the command console.
+- Question region: learning steps, prompt, supporting copy, and three answer buttons are visible without page scrolling.
+- Feedback region: a wrong answer updates shield 25 to 17 and shows the explanation in the in-game message bar; a correct answer advances the seal and swaps to the next question.
+- Responsive region: tablet uses the same single game cockpit, desktop places the command console beside the battle map, and short landscape screens use a two-column cockpit.
 
 ## Fidelity surfaces
 
-- Fonts and typography: Korean headings use keep-all wrapping and stable line height; compact English labels remain secondary.
-- Spacing and layout rhythm: stage grid uses 3 columns on PC, 2 on tablet, and 1 on phone; touch CTAs are at least 56px high.
-- Colors and visual tokens: navy, cyan, gold, and rarity colors stay aligned with the existing RPG screens.
-- Image quality and asset fidelity: only optimized CC0 Duelyst raster assets are used for stage, reward, result, and inventory imagery; no new placeholder art remains in these regions.
-- Copy and content: child-facing actions use short verbs and visible outcomes; implementation-phase wording was removed from the active lobby choices.
+- Fonts and typography: Korean copy uses the existing game typography, keeps full words intact, and preserves a clear question hierarchy.
+- Spacing and layout rhythm: the command console starts immediately after the battle message; controls remain at least 44px high and no horizontal overflow was observed.
+- Colors and visual tokens: navy, cyan, gold, and pale-yellow command buttons match the existing RPG HUD and reward styling.
+- Image quality and asset fidelity: the existing Phaser raster map and characters are preserved at their intended crop and integer-scaled rendering; no placeholder asset was introduced.
+- Copy and content: all curriculum prompts, choices, boss warning timing, hint actions, and feedback explanations are preserved.
 
 ## Comparison history
 
-1. P1: Korean text and CTA labels wrapped character-by-character in compressed stage cards.
-   - Fix: keep-all typography, 3/2/1 responsive grid, wider card content tracks, single-column CTA layout.
-   - Post-fix evidence: desktop and tablet unlocked-stage screenshots show intact words and aligned buttons.
-2. P1: result and inventory rewards were mostly text/symbols, and inventory navigation was hidden on mobile.
-   - Fix: real asset-led cards, direct result-to-inventory CTA, mobile header inventory visibility.
-   - Post-fix evidence: result and inventory screenshots at all three viewport classes.
-3. P2: Stage 2 remained visually and functionally locked after Stage 1 completion.
-   - Fix: unlock state derives from persisted play history and exposes the Stage 2 CTA.
-   - Post-fix evidence: `NEW ROUTE` and `단어섬 출정` are visible after one completed adventure.
+1. P1: the question appeared as a separate white web page below the battle.
+   - Fix: moved the mission panel into `.battle-visual` and restyled it as an in-game command console.
+   - Post-fix evidence: `battle-command-console-478x850.png` shows battle and question in one frame.
+2. P2: the first integrated pass vertically centered the question and left a large gap above it.
+   - Fix: changed the mobile command console to start-aligned content.
+   - Post-fix evidence: the learning steps and prompt now begin directly beneath the battle message.
 
 ## Findings
 
-No actionable P0/P1/P2 visual mismatch remains in the world, result, and inventory comparison scope. The authenticated online lobby uses the same responsive tokens and is covered by build and three-viewport flow tests; a live two-account visual session remains a later integration check.
+No actionable P0/P1/P2 mismatch remains in this scope. Browser verification found no console error for the Minz Edu local origin. The mobile layout measured 390x844 with document scroll width 390 and scroll height 844.
 
 ## Follow-up polish
 
-- P3: replace reused character art with unique stage-specific CC0 assets as the content library grows.
+- P3: the remaining empty lower command-console area can later hold a contextual skill button, item shortcut, or companion hint without moving the core answer controls.
 
 final result: passed

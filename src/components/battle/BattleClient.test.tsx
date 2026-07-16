@@ -111,4 +111,15 @@ describe("BattleClient learning goal binding", () => {
     expect(await screen.findByText(/씨앗 파동 준비 4초/)).toBeInTheDocument();
     expect(screen.getByText(/빠르게 집중/)).toBeInTheDocument();
   });
+
+  it("학습 문제를 전투 화면 내부 명령 콘솔에 표시한다", async () => {
+    render(<BattleClient />);
+
+    await finishExplorationAndStart();
+
+    const console = await screen.findByTestId("battle-command-console");
+    expect(console).toHaveAccessibleName("전투 학습 명령");
+    expect(console.closest(".battle-visual")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "352에서 5가 나타내는 값은?" })).toBeInTheDocument();
+  });
 });
