@@ -49,14 +49,16 @@ test("같은 기기 2인 협동 전투와 새로고침 저장", async ({ page },
     expect(missionBox).not.toBeNull();
     expect(visualBox).not.toBeNull();
     expect(stageBox!.y).toBeGreaterThanOrEqual(0);
+    expect(stageBox!.height).toBeGreaterThanOrEqual(page.viewportSize()!.height * 0.85);
     expect(missionBox!.y).toBeGreaterThan(stageBox!.y);
+    expect(missionBox!.y).toBeGreaterThan(page.viewportSize()!.height * 0.5);
     expect(missionBox!.y).toBeLessThan(page.viewportSize()!.height);
     expect(missionBox!.y + missionBox!.height).toBeLessThanOrEqual(page.viewportSize()!.height + 1);
     expect(missionBox!.y).toBeGreaterThanOrEqual(visualBox!.y);
     expect(missionBox!.y + missionBox!.height).toBeLessThanOrEqual(visualBox!.y + visualBox!.height + 1);
   }
   await expect(page.getByTestId("battle-command-console")).toBeVisible();
-  await expect(page.locator(".battle-visual > .battle-command-console")).toHaveCount(1);
+  await expect(page.locator(".battle-visual > .battle-overlay-dock > .battle-command-console")).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: path.join(process.cwd(), "output", "playwright", `coop-battle-${testInfo.project.name}.png`), fullPage: false });
   await expect(page.getByText(/씨앗 파동 (준비|접근)/)).toBeVisible();

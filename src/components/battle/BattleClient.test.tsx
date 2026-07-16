@@ -119,7 +119,7 @@ describe("BattleClient learning goal binding", () => {
 
     const console = await screen.findByTestId("battle-command-console");
     expect(console).toHaveAccessibleName("전투 학습 명령");
-    expect(console.closest(".battle-visual")).not.toBeNull();
+    expect(console.closest(".battle-overlay-dock.is-combat")?.parentElement).toHaveClass("battle-visual");
     expect(screen.getByRole("heading", { name: "352에서 5가 나타내는 값은?" })).toBeInTheDocument();
   });
 });
