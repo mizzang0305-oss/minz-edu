@@ -582,9 +582,10 @@ export function applyGameSyncSnapshot(local: StoredGameData, remote: GameSyncSna
   local.playHistory.forEach((record) => {
     const normalized = normalizeAdventure(record);
     if (!normalized) return;
-    const current = localById.get(normalized.id);
+    const id = canonicalLegacyRecordId(normalized.id);
+    const current = localById.get(id);
     if (!current || normalizeTimestamp(current.completedAt) <= normalized.completedAt) {
-      localById.set(normalized.id, record);
+      localById.set(id, record);
     }
   });
   const playHistory: AdventureRecord[] = merged.adventures.map((item) => {

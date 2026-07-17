@@ -284,13 +284,15 @@ describe("guardian game state sync boundary", () => {
       adventures: [{ ...current.adventures[0], id: previousId }],
     };
     const merged = mergeGameSyncSnapshots(previous, current);
-    const restored = applyGameSyncSnapshot(gameWith([record]), previous);
+    const previousLocalRecord = { ...record, id: previousId, thought: "기기에만 남는 기록" };
+    const restored = applyGameSyncSnapshot(gameWith([previousLocalRecord]), previous);
 
     expect(parseGameSyncSnapshot(previous)).not.toBeNull();
     expect(merged.adventures).toHaveLength(1);
     expect(merged.adventures[0].id).toBe(currentId);
     expect(restored.inventory.coins).toBe(135);
     expect(restored.playHistory).toHaveLength(1);
+    expect(restored.playHistory[0]).toMatchObject({ id: currentId, thought: "기기에만 남는 기록" });
   });
 
   it("does not overwrite local-only fields when applying remote progress", () => {
