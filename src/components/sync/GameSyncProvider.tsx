@@ -80,7 +80,12 @@ export function GameSyncProvider({ children }: { children: React.ReactNode }) {
     };
 
     const putState = async () => {
-      if (!authenticated.current || syncing.current || !active) return;
+      if (!authenticated.current || !active) return;
+      if (syncing.current) {
+        dirtyGeneration.current += 1;
+        scheduleSync();
+        return;
+      }
       syncing.current = true;
       const childProfileId = getActiveChildProfileId();
       const generation = dirtyGeneration.current;
