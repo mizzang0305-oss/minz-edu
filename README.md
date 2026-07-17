@@ -1,15 +1,70 @@
-# 민즈 어드벤처
+# 민즈 AI 공부게임
 
-초등 저학년이 숫자 블록을 직접 조작하며 `10 만들기`와 받아올림 덧셈을 발견하는 2D 웹 전투 MVP입니다. 현재 1인 모드와 같은 기기 2인 협동이 동작하며, 각자 휴대폰·태블릿에서 참가하는 온라인 협동은 Google 보호자 계정 기반 방 생성·6자리 코드 참가·실시간 로비까지 연결되어 있습니다.
+유아와 초등학생이 캐릭터를 직접 움직여 탐험하고, 수학·국어 문제를 풀어 몬스터를 물리치는 무료 웹 학습 RPG입니다.
 
-## 실행
+- 운영 데모: [https://minz-edu.vercel.app](https://minz-edu.vercel.app)
+- OpenAI Build Week 출품 부문: **Education**
+- 결제, 광고, 유료 아이템, 공개 채팅 없음
+
+## 주요 기능
+
+- 숫자 숲·단어섬·이야기 성으로 이어지는 RPG 월드
+- 유아·초등 학년, 학기, 주차별 학습 목표 선택
+- 문제 풀이를 보스 공격 회피·방어·반격으로 연결한 전투
+- NPC 대화, 보물 상자, 조각 수집, 대시, 숨은 통로와 인벤토리
+- 보호자 Google 로그인과 여러 자녀 프로필 분리
+- 자녀별 스테이지 진행도, 학습 결과와 인벤토리 Firebase 동기화
+- 6자리 참가 코드 기반 2인 협동 로비
+- 휴대폰 세로·가로, 태블릿과 PC 반응형 UI
+- 처음 한 번 세계관, 플레이 방법과 최종 목표를 알려주는 게임 인트로
+
+## 기술 구성
+
+- Next.js 16, React 19, TypeScript
+- Phaser 3, HTML5 Canvas, Tiled maps
+- Firebase Authentication, Cloud Firestore, Firebase Admin SDK
+- Tailwind CSS, PWA
+- Vitest, React Testing Library, Playwright, Firebase Rules Unit Testing
+- Vercel
+
+## 로컬 실행
+
+### 요구 사항
+
+- Node.js 20 이상
+- npm
+- 온라인 기능 및 Firestore Rules 검증 시 Firebase CLI와 Java 21 이상
+
+### 설치 및 개발 서버
 
 ```powershell
 npm install
 npm run dev
 ```
 
-브라우저에서 `http://localhost:3000`을 엽니다.
+브라우저에서 [http://localhost:3000](http://localhost:3000)을 엽니다. Firebase 운영 비밀값 없이도 로컬 게임의 기본 화면과 학습 흐름을 확인할 수 있습니다.
+
+### Firebase 온라인 기능
+
+온라인 기능은 저장소에 포함되지 않은 Firebase Web 설정과 Admin 인증정보가 필요합니다. 비밀값, 서비스 계정 키와 로컬 설정 파일은 Git에 커밋하지 않습니다.
+
+1. Firebase CLI로 로컬 `.firebase-web-config.json`을 준비합니다.
+2. Firebase Admin 인증정보는 로컬 환경변수 또는 배포 플랫폼의 암호화된 환경변수로 설정합니다.
+3. `/login`에서 보호자 Google 로그인과 `HttpOnly` 서버 세션 교환을 사용합니다.
+4. `/room`에서 방을 만들거나 6자리 코드로 참가하면 Firestore 구독으로 로비가 동기화됩니다.
+
+온라인 데이터와 권한 구조는 [ONLINE_MOBILE_ARCHITECTURE.md](./docs/minz-learning-game/ONLINE_MOBILE_ARCHITECTURE.md), 게임 기록 동기화는 [FIREBASE_GAME_STATE_SYNC.md](./docs/minz-learning-game/FIREBASE_GAME_STATE_SYNC.md)에서 확인할 수 있습니다.
+
+## 체험 순서
+
+1. 첫 방문 게임 인트로를 확인하거나 건너뜁니다.
+2. 보호자 Google 계정으로 로그인합니다. 아이의 개인 Google 계정은 필요하지 않습니다.
+3. 유아 또는 초등 자녀 프로필을 만들거나 선택합니다.
+4. 학년·학기·주차별 목표를 선택하고 월드에 입장합니다.
+5. 화면 방향키 또는 키보드 방향키로 이동합니다.
+6. NPC, 보물 상자와 목표물 근처에서 화면 상호작용 버튼을 누릅니다.
+7. 보스전에서 문제를 풀어 공격을 피하고 반격합니다.
+8. 승리 후 코인, 스테이지 진행도, 학습 결과와 인벤토리를 확인합니다.
 
 ## 검증
 
@@ -21,31 +76,69 @@ npm run build
 npm run test:e2e
 ```
 
-## MVP 흐름
-
-1. `/setup`에서 아이·모드·친구 프로필을 설정합니다.
-2. `/world`에서 숫자 숲을 선택합니다.
-3. `/battle`에서 10칸 틀 조작 → 각자 암호 → 심화 작전 → 필살기를 진행합니다.
-4. `/result`에서 보상과 오늘의 생각을 저장합니다.
-5. `/parent`에서 비교 없는 시도·힌트·협동 기록을 확인합니다.
-6. 실제 2인 세션 뒤 `/parent/observation`에서 협동 UX 관찰지를 저장합니다.
-
-현재 상세 학습 데이터는 마이그레이션 가능한 버전 필드를 포함해 브라우저 `localStorage`에 저장됩니다. Firebase 프로젝트 `studymate-ai-v2`를 온라인 데이터 대상으로 사용하며 Google 보호자 로그인, 최소 자녀 프로필, Firestore 보안 규칙과 서버 권한 온라인 방 API를 연결합니다. 설정 파일과 Admin 키는 Git에서 제외됩니다. 온라인 턴 전투 확정 서버, 결제, 광고, 공개 채팅은 아직 연결하지 않습니다.
-
-## 온라인 계정 준비
-
-1. Firebase CLI로 `.firebase-web-config.json`을 생성하고 로컬 Admin 키 또는 운영 비밀 환경값을 설정합니다.
-2. `/login`에서 보호자 Google 로그인 → `HttpOnly` 서버 세션 교환을 사용합니다.
-3. 아이는 개인 Google 로그인 없이 보호자 소유 자녀 프로필과 승인된 방 코드로 참가합니다.
-4. `/room`에서 방을 만들거나 6자리 코드로 참가하면 두 기기의 로비가 Firestore 구독으로 동기화됩니다.
-5. 로비는 20초마다 연결 상태를 확인하고, 네트워크가 끊겨도 60초 동안 같은 방 재접속을 기다립니다.
-
-온라인 전투의 데이터·권한·모바일 기준은 [ONLINE_MOBILE_ARCHITECTURE.md](./docs/minz-learning-game/ONLINE_MOBILE_ARCHITECTURE.md)에 정리했습니다.
-
-Firestore 규칙은 Java 21 이상에서 다음 명령으로 검증합니다.
+Firestore Rules는 Java 21 이상에서 검증합니다.
 
 ```powershell
 npm run test:rules
 ```
 
-상세 설계는 [docs/minz-learning-game](./docs/minz-learning-game)에서 확인할 수 있습니다.
+## OpenAI Build Week — Codex와 GPT-5.6 활용
+
+초기 학습 게임 아이디어는 출품 기간 전에 존재했습니다. OpenAI Build Week 기간에는 Codex와 GPT-5.6을 제품 설계, 구현, 오류 분석, 테스트, 보안 검토와 배포 파트너로 사용해 모바일 중심의 배포 가능한 학습 RPG로 발전시켰습니다.
+
+### Codex가 가속한 작업
+
+- Next.js, React, Phaser와 Firebase로 구성된 저장소 전체 구조 분석
+- 실제 화면 캡처를 바탕으로 문제점을 재현하고 UI·게임플레이 개선
+- 문제와 전투를 한 화면에 통합해 스크롤 없이 보스와 선택지를 동시에 표시
+- 보스 공격 예고, 문제 기반 회피·방어·반격 흐름 구현
+- 휴대폰 세로·가로, 태블릿과 PC 반응형 레이아웃 안정화
+- 학년·학기·주차·학습 목표 기반 스테이지 선택과 훈련 흐름 설계
+- Google 보호자 로그인, 다중 자녀 프로필과 자녀별 Firebase 기록 동기화
+- Phaser 장면 생명주기와 Canvas `drawImage` 오류의 원인 분석 및 회귀 방지
+- 단위·통합·브라우저·Firestore Rules 테스트 작성과 반복 검증
+- GitHub PR exact-head 검증, Vercel Preview와 Production 배포 확인
+
+### GPT-5.6과 함께 결정한 제품 원칙
+
+- 구독, 유료 아이템과 광고 없이 무료로 제공
+- 중등 과정을 제외하고 유아·초등 학습에 집중
+- 문제 풀이를 별도 시험지가 아니라 탐험과 전투 행동으로 표현
+- 점프 대신 이동·대화·탐색·회피·스킬에 집중
+- 보스 공격은 문제를 풀면 피하거나 막을 수 있도록 설계
+- 오답을 처벌하지 않고 힌트와 재도전으로 연결
+- 협동 플레이에서 공개 채팅과 직접 점수 비교를 제공하지 않음
+- 아이에게 개인 Google 계정을 요구하지 않고 보호자 계정 아래에서 데이터 분리
+
+### 출품 기간에 완성·개선한 범위
+
+- RPG 탐험과 학습 문제를 결합한 반응형 게임 HUD
+- 숫자 숲, 단어섬, 이야기 성 Tiled 월드와 단계별 보스 흐름
+- 유아·초등 교육과정 및 주차별 목표 선택
+- 자녀별 진행도·학습 결과·인벤토리의 안전한 동기화와 레거시 데이터 정규화
+- 첫 실행 스토리 인트로와 다시 보기
+- 모바일 성능·접근성·오프라인 복구·회귀 테스트
+- 공개 GitHub 저장소, Vercel 운영 배포와 심사용 문서
+
+### 증빙
+
+- 주요 Codex 작업 Session ID: `019f5437-0dbd-7c33-9300-e711c3b90f19`
+- [Pull request 및 커밋 기록](https://github.com/mizzang0305-oss/minz-edu/pulls)
+- [운영 애플리케이션](https://minz-edu.vercel.app)
+- 테스트: Vitest, React Testing Library, Playwright, Firebase Rules Unit Testing
+
+## 안전과 개인정보
+
+- 아이는 개인 Google 계정 없이 보호자가 만든 자녀 프로필로 이용합니다.
+- 서버는 보호자 세션과 자녀 소유 관계를 확인합니다.
+- Firestore 직접 쓰기는 보안 규칙으로 제한합니다.
+- 서비스 계정 키, 토큰, 비밀번호와 개인 데이터는 저장소에 포함하지 않습니다.
+- 결제, 광고, 공개 채팅과 위치 공유를 제공하지 않습니다.
+
+## 문서
+
+상세 설계와 검증 기록은 [docs/minz-learning-game](./docs/minz-learning-game)에서 확인할 수 있습니다.
+
+## License
+
+This project is licensed under the [MIT License](./LICENSE).
