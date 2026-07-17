@@ -297,13 +297,13 @@ function stableLegacyDiscriminator(parts: unknown[]) {
   return `${(first >>> 0).toString(16).padStart(8, "0")}${(second >>> 0).toString(16).padStart(8, "0")}`;
 }
 
-function normalizeRecordId(value: unknown, prefix: string, index: number, timestamp: string, fingerprint: unknown[]) {
+function normalizeRecordId(value: unknown, prefix: string, timestamp: string, fingerprint: unknown[]) {
   if (isSafeId(value)) return value;
   const timestampPart = Math.max(0, Date.parse(timestamp));
-  return `${prefix}-${index}-${timestampPart}-${stableLegacyDiscriminator([value, ...fingerprint])}`;
+  return `${prefix}-${timestampPart}-${stableLegacyDiscriminator([value, ...fingerprint])}`;
 }
 
-function normalizeAdventure(value: unknown, index: number): SyncedAdventure | null {
+function normalizeAdventure(value: unknown): SyncedAdventure | null {
   if (!isRecord(value)) return null;
   const completedAt = normalizeTimestamp(value.completedAt);
   const firstTryCorrect = value.firstTryCorrect === undefined ? undefined : normalizeCounter(value.firstTryCorrect, 100);
@@ -314,7 +314,7 @@ function normalizeAdventure(value: unknown, index: number): SyncedAdventure | nu
     : undefined;
   const learningGoalId = isSafeId(value.learningGoalId) ? value.learningGoalId : undefined;
   return {
-    id: normalizeRecordId(value.id, "legacy-adventure", index, completedAt, [
+    id: normalizeRecordId(value.id, "legacy-adventure", completedAt, [
       value.completedAt,
       value.mode,
       value.completedMissions,
@@ -347,13 +347,13 @@ function normalizeAdventure(value: unknown, index: number): SyncedAdventure | nu
   };
 }
 
-function normalizeTrainingAttempt(value: unknown, index: number): TrainingAttemptRecord | null {
+function normalizeTrainingAttempt(value: unknown): TrainingAttemptRecord | null {
   if (!isRecord(value) || !isSafeId(value.goalId)) return null;
   const completedAt = normalizeTimestamp(value.completedAt);
   const firstTryCorrect = normalizeCounter(value.firstTryCorrect, 100);
   const questionCount = Math.max(firstTryCorrect, normalizeCounter(value.questionCount, 100));
   return {
-    id: normalizeRecordId(value.id, "legacy-training", index, completedAt, [
+    id: normalizeRecordId(value.id, "legacy-training", completedAt, [
       value.goalId,
       value.mode,
       value.completedAt,
@@ -416,11 +416,20 @@ function normalizeLearningGoalProgress(value: unknown): GameSyncSnapshot["learni
   return result;
 }
 
+function canonicalLegacyRecordId(id: string) {
+  const previousGeneratedId = /^(legacy-(?:adventure|training))-\d+-(\d+)-([0-9a-f]{16})$/.exec(id);
+  return previousGeneratedId
+    ? `${previousGeneratedId[1]}-${previousGeneratedId[2]}-${previousGeneratedId[3]}`
+    : id;
+}
+
 function dedupeById<T extends { id: string; completedAt: string }>(items: T[]) {
   const byId = new Map<string, T>();
-  for (const item of items) {
-    const current = byId.get(item.id);
-    if (!current || current.completedAt <= item.completedAt) byId.set(item.id, item);
+  for (const source of items) {
+    const id = canonicalLegacyRecordId(source.id);
+    const item = id === source.id ? source : { ...source, id };
+    const current = byId.get(id);
+    if (!current || current.completedAt <= item.completedAt) byId.set(id, item);
   }
   return Array.from(byId.values()).sort((a, b) => a.completedAt.localeCompare(b.completedAt));
 }
@@ -496,7 +505,9 @@ function mergeGoalProgress(
 }
 
 export function mergeGameSyncSnapshots(left: GameSyncSnapshot, right: GameSyncSnapshot): GameSyncSnapshot {
-  const previouslyArchived = new Set([...left.archivedAdventureIds, ...right.archivedAdventureIds]);
+  const previouslyArchived = new Set(
+    [...left.archivedAdventureIds, ...right.archivedAdventureIds].map(canonicalLegacyRecordId),
+  );
   const allAdventures = dedupeById([...left.adventures, ...right.adventures])
     .filter((item) => !previouslyArchived.has(item.id));
   const droppedAdventures = allAdventures.slice(0, Math.max(0, allAdventures.length - MAX_ADVENTURES));
@@ -567,7 +578,16 @@ export function createGameSyncSnapshot(data: StoredGameData): GameSyncSnapshot {
 
 export function applyGameSyncSnapshot(local: StoredGameData, remote: GameSyncSnapshot): StoredGameData {
   const merged = mergeGameSyncSnapshots(createGameSyncSnapshot(local), remote);
-  const localById = new Map(local.playHistory.map((item) => [item.id, item]));
+  const localById = new Map<string, AdventureRecord>();
+  local.playHistory.forEach((record) => {
+    const normalized = normalizeAdventure(record);
+    if (!normalized) return;
+    const id = canonicalLegacyRecordId(normalized.id);
+    const current = localById.get(id);
+    if (!current || normalizeTimestamp(current.completedAt) <= normalized.completedAt) {
+      localById.set(id, record);
+    }
+  });
   const playHistory: AdventureRecord[] = merged.adventures.map((item) => {
     const localRecord = localById.get(item.id);
     return {
