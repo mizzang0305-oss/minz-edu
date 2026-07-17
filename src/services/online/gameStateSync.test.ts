@@ -89,6 +89,25 @@ describe("guardian game state sync boundary", () => {
     expect(parseGameStateSyncRequest({ childProfileId: "../other", csrfToken: "token", state: valid })).toBeNull();
   });
 
+  it("normalizes legacy goal totals before cloud sync", () => {
+    const data = createDefaultGameData();
+    data.learningGoalProgress["elementary-5-s2-math-w8"] = {
+      goalId: "elementary-5-s2-math-w8",
+      status: "in-progress",
+      attempts: 1,
+      firstTryCorrect: 5,
+      questionCount: 3,
+      retryCount: 0,
+      hintCount: 0,
+      updatedAt: "2026-07-15T01:00:00.000Z",
+    };
+
+    const snapshot = createGameSyncSnapshot(data);
+
+    expect(snapshot.learningGoalProgress["elementary-5-s2-math-w8"].questionCount).toBe(5);
+    expect(parseGameSyncSnapshot(snapshot)).not.toBeNull();
+  });
+
   it("does not overwrite local-only fields when applying remote progress", () => {
     const local = gameWith([]);
     local.opinionEntries = [{ id: "note", text: "기기 전용", createdAt: "2026-07-15T04:00:00.000Z" }];

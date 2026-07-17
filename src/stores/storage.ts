@@ -278,14 +278,18 @@ export function saveAdventure(record: AdventureRecord): StoredGameData {
   const completedGoal = record.learningGoalId
     ? getWeeklyLearningGoals(current.playerProfile, current.parentSettings.academicSemester).find((goal) => goal.id === record.learningGoalId)
     : undefined;
+  const firstTryCorrect = record.firstTryCorrect ?? Math.max(0, record.completedMissions - record.retryCount);
+  const questionCount = Math.max(1, record.completedMissions, firstTryCorrect);
+  const cumulativeFirstTryCorrect = (previousGoal?.firstTryCorrect ?? 0) + firstTryCorrect;
+  const cumulativeQuestionCount = (previousGoal?.questionCount ?? 0) + questionCount;
   const learningGoalProgress = record.learningGoalId ? {
     ...current.learningGoalProgress,
     [record.learningGoalId]: {
       goalId: record.learningGoalId,
       status: previousGoal?.status === "mastered" ? "mastered" as const : "in-progress" as const,
       attempts: (previousGoal?.attempts ?? 0) + 1,
-      firstTryCorrect: (previousGoal?.firstTryCorrect ?? 0) + (record.firstTryCorrect ?? Math.max(0, record.completedMissions - record.retryCount)),
-      questionCount: (previousGoal?.questionCount ?? 0) + Math.max(1, record.completedMissions),
+      firstTryCorrect: cumulativeFirstTryCorrect,
+      questionCount: Math.max(cumulativeQuestionCount, cumulativeFirstTryCorrect),
       retryCount: (previousGoal?.retryCount ?? 0) + record.retryCount,
       hintCount: (previousGoal?.hintCount ?? 0) + record.hintCount,
       updatedAt: record.completedAt,
