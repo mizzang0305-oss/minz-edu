@@ -138,10 +138,18 @@ export function GameSyncProvider({ children }: { children: React.ReactNode }) {
 
     const onOnline = () => {
       csrfToken.current = "";
+      if (!authenticated.current) {
+        void bootstrap();
+        return;
+      }
       scheduleSync();
     };
 
     const bootstrap = async () => {
+      if (!window.navigator.onLine) {
+        if (active) setStatus("local");
+        return;
+      }
       try {
         const sessionResponse = await fetchWithTimeout("/api/auth/session", {
           cache: "no-store",

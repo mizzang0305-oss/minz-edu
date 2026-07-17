@@ -56,6 +56,21 @@ export function activateChildProfile(
   return true;
 }
 
+export function removeChildProfileData(
+  childProfileId: string,
+  fallback?: { id: string; displayName: string; schoolLevel: StoredGameData["playerProfile"]["schoolLevel"]; grade: number },
+) {
+  if (typeof window === "undefined" || !isValidChildProfileId(childProfileId) || childProfileId === PRIMARY_CHILD_PROFILE_ID) {
+    return false;
+  }
+  window.localStorage.removeItem(getChildStorageKey(childProfileId));
+  if (getActiveChildProfileId() !== childProfileId) return true;
+  if (fallback) return activateChildProfile(fallback);
+  window.localStorage.removeItem(ACTIVE_CHILD_PROFILE_KEY);
+  window.dispatchEvent(new Event(ACTIVE_CHILD_CHANGED_EVENT));
+  return true;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createChildProfileSyncRequest,
+  parseChildProfileDeleteRequest,
   parseChildProfileSyncRequest,
   readSafeChildRoomIdentity,
   readSafeStoredFriendCode,
@@ -57,6 +58,15 @@ describe("child profile sync boundary", () => {
   it("reads only the CSRF token from an object-shaped request", () => {
     expect(readChildProfileCsrfToken({ csrfToken: "csrf-token" })).toBe("csrf-token");
     expect(readChildProfileCsrfToken(null)).toBeUndefined();
+  });
+
+  it("accepts only a bounded child profile deletion envelope", () => {
+    expect(parseChildProfileDeleteRequest({ childProfileId: "child_second", csrfToken: "csrf-token" })).toEqual({
+      childProfileId: "child_second",
+      csrfToken: "csrf-token",
+    });
+    expect(parseChildProfileDeleteRequest({ childProfileId: "../other", csrfToken: "csrf-token" })).toBeNull();
+    expect(parseChildProfileDeleteRequest({ childProfileId: "child_second", csrfToken: "", admin: true })).toBeNull();
   });
 
   it("rejects unsafe character and display identifiers", () => {

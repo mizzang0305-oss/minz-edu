@@ -9,6 +9,7 @@ import type { SafeChildProfile } from "@/services/online/childProfileSync";
 import {
   activateChildProfile,
   getActiveChildProfileId,
+  removeChildProfileData,
 } from "@/stores/storage";
 
 type ChildListResponse = { children?: SafeChildProfile[]; error?: string };
@@ -23,7 +24,10 @@ export function ChildProfileSelector() {
   const [activeId, setActiveId] = useState("primary");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [schoolLevel, setSchoolLevel] = useState<SchoolLevel>("kindergarten");
@@ -93,11 +97,45 @@ export function ChildProfileSelector() {
     }
   };
 
+  const deleteChild = async (child: SafeChildProfile) => {
+    if (child.id === "primary") return;
+    setDeletingId(child.id);
+    setError("");
+    setNotice("");
+    try {
+      const csrfResponse = await fetch("/api/auth/csrf", { cache: "no-store", credentials: "same-origin" });
+      const csrf = await readJson<{ csrfToken?: string }>(csrfResponse);
+      if (!csrfResponse.ok || typeof csrf.csrfToken !== "string") throw new Error("보안 확인을 준비하지 못했습니다.");
+      const response = await fetch("/api/guardian/children", {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ childProfileId: child.id, csrfToken: csrf.csrfToken }),
+      });
+      const result = await readJson<{ deletedChildProfileId?: string; error?: string }>(response);
+      if (!response.ok || result.deletedChildProfileId !== child.id) {
+        throw new Error(result.error ?? "모험가 기록을 정리하지 못했습니다.");
+      }
+      const remaining = children.filter((candidate) => candidate.id !== child.id);
+      const fallback = remaining.find((candidate) => candidate.id === "primary") ?? remaining[0];
+      removeChildProfileData(child.id, fallback);
+      setChildren(remaining);
+      setActiveId(fallback?.id ?? "primary");
+      setConfirmDeleteId("");
+      setNotice(`${child.displayName}의 모험 기록을 안전하게 정리했습니다.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "모험가 기록을 정리하지 못했습니다.");
+    } finally {
+      setDeletingId("");
+    }
+  };
+
   if (loading) return <div className="child-selector-loading" role="status">모험가 명단을 펼치는 중…</div>;
 
   return (
     <div className="child-selector-shell">
       {error && <p className="child-selector-error" role="alert">{error}</p>}
+      {notice && <p className="child-selector-notice" role="status">{notice}</p>}
       <section className="child-card-grid" aria-label="자녀 프로필 선택">
         {children.map((child, index) => (
           <article className={child.id === activeId ? "child-profile-card active" : "child-profile-card"} key={child.id}>
@@ -107,6 +145,7 @@ export function ChildProfileSelector() {
               alt=""
               width={420}
               height={304}
+              priority={index < 2}
             />
             <h2>{child.displayName}</h2>
             <p>{SCHOOL_LEVEL_LABELS[child.schoolLevel]} · {child.schoolLevel === "kindergarten" ? `${child.grade}세` : `${child.grade}학년`}</p>
@@ -114,6 +153,19 @@ export function ChildProfileSelector() {
               <button className="primary-button" type="button" onClick={() => selectChild(child, "/world")}>이 모험가로 출발</button>
               <button className="secondary-button" type="button" onClick={() => selectChild(child, "/setup")}>설정 바꾸기</button>
             </div>
+            {child.id !== "primary" && (confirmDeleteId === child.id ? (
+              <div className="child-delete-confirm" role="group" aria-label={`${child.displayName} 기록 삭제 확인`}>
+                <p>진행도와 보물까지 영구 삭제됩니다.</p>
+                <div>
+                  <button type="button" disabled={deletingId === child.id} onClick={() => setConfirmDeleteId("")}>취소</button>
+                  <button className="danger-button" type="button" disabled={deletingId === child.id} onClick={() => void deleteChild(child)}>
+                    {deletingId === child.id ? "정리하는 중…" : "기록까지 삭제"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button className="child-delete-button" type="button" onClick={() => setConfirmDeleteId(child.id)}>모험가 삭제</button>
+            ))}
           </article>
         ))}
         <button className="child-create-card" type="button" onClick={() => setShowCreate((current) => !current)}>

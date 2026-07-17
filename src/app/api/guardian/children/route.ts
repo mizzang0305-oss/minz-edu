@@ -6,6 +6,7 @@ import { getGuardianSession } from "@/lib/auth/guardianSession";
 import { getFirebaseAdminFirestore } from "@/lib/firebase/admin";
 import { readLimitedJsonBody } from "@/lib/auth/safeRequest";
 import {
+  parseChildProfileDeleteRequest,
   parseChildProfileSyncRequest,
   readSafeStoredChildProfile,
   readChildProfileCsrfToken,
@@ -24,6 +25,71 @@ function createFriendCode() {
     { length: 8 },
     () => FRIEND_CODE_ALPHABET[randomInt(FRIEND_CODE_ALPHABET.length)],
   ).join("");
+}
+
+export async function DELETE(request: Request) {
+  const guardian = await getGuardianSession();
+  if (!guardian) {
+    return Response.json({ error: "로그인이 필요합니다." }, { status: 401, headers: noStoreHeaders });
+  }
+
+  const bodyResult = await readLimitedJsonBody(request, 512);
+  if (!bodyResult.ok) {
+    return Response.json(
+      { error: bodyResult.error === "too_large" ? "요청이 너무 큽니다." : "잘못된 요청입니다." },
+      { status: bodyResult.error === "too_large" ? 413 : 400, headers: noStoreHeaders },
+    );
+  }
+  const cookieStore = await cookies();
+  if (!isValidCsrfPair(cookieStore.get(CSRF_COOKIE)?.value, readChildProfileCsrfToken(bodyResult.value))) {
+    return Response.json({ error: "보안 확인에 실패했습니다." }, { status: 403, headers: noStoreHeaders });
+  }
+  const input = parseChildProfileDeleteRequest(bodyResult.value);
+  if (!input) {
+    return Response.json({ error: "삭제할 자녀 프로필 정보가 올바르지 않습니다." }, { status: 400, headers: noStoreHeaders });
+  }
+  if (input.childProfileId === "primary") {
+    return Response.json({ error: "기본 모험가는 삭제할 수 없습니다." }, { status: 409, headers: noStoreHeaders });
+  }
+  if (!allowChildProfileMutation(guardian.uid)) {
+    return Response.json({ error: "요청이 너무 빠릅니다." }, { status: 429, headers: noStoreHeaders });
+  }
+
+  try {
+    const firestore = getFirebaseAdminFirestore();
+    const guardianRef = firestore.collection("guardians").doc(guardian.uid);
+    const childRef = guardianRef.collection("children").doc(input.childProfileId);
+    const primaryRef = guardianRef.collection("children").doc("primary");
+    const gameStateRef = childRef.collection("gameState").doc("current");
+    const result = await firestore.runTransaction(async (transaction) => {
+      const [child, primary] = await Promise.all([
+        transaction.get(childRef),
+        transaction.get(primaryRef),
+      ]);
+      if (!child.exists) return "not-found" as const;
+      if (!primary.exists) return "last-child" as const;
+      transaction.delete(gameStateRef);
+      transaction.delete(childRef);
+      transaction.set(
+        guardianRef,
+        {
+          childProfileIds: FieldValue.arrayRemove(input.childProfileId),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      return "deleted" as const;
+    });
+    if (result === "not-found") {
+      return Response.json({ error: "이미 정리된 모험가입니다." }, { status: 404, headers: noStoreHeaders });
+    }
+    if (result === "last-child") {
+      return Response.json({ error: "기본 모험가를 먼저 복구해 주세요." }, { status: 409, headers: noStoreHeaders });
+    }
+    return Response.json({ deletedChildProfileId: input.childProfileId }, { headers: noStoreHeaders });
+  } catch {
+    return Response.json({ error: "모험가 기록을 정리하지 못했습니다." }, { status: 503, headers: noStoreHeaders });
+  }
 }
 
 function createChildProfileId() {

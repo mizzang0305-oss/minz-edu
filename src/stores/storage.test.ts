@@ -12,6 +12,7 @@ import {
   ACTIVE_CHILD_PROFILE_KEY,
   activateChildProfile,
   getChildStorageKey,
+  removeChildProfileData,
 } from "./storage";
 
 describe("versioned local storage", () => {
@@ -28,6 +29,21 @@ describe("versioned local storage", () => {
 
     activateChildProfile({ id: "primary", displayName: "민즈", schoolLevel: "elementary", grade: 2 });
     expect(readGameData().inventory.coins).toBe(35);
+  });
+
+  it("보조 자녀를 정리하면 해당 로컬 기록만 지우고 기본 자녀로 복구한다", () => {
+    const primary = createDefaultGameData();
+    primary.inventory.coins = 70;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(primary));
+    activateChildProfile({ id: "child_second", displayName: "전환테스트", schoolLevel: "kindergarten", grade: 5 });
+    const childKey = getChildStorageKey("child_second");
+    expect(localStorage.getItem(childKey)).not.toBeNull();
+
+    expect(removeChildProfileData("child_second", { id: "primary", displayName: "민표", schoolLevel: "elementary", grade: 5 })).toBe(true);
+    expect(localStorage.getItem(childKey)).toBeNull();
+    expect(localStorage.getItem(ACTIVE_CHILD_PROFILE_KEY)).toBe("primary");
+    expect(readGameData().inventory.coins).toBe(70);
+    expect(removeChildProfileData("primary")).toBe(false);
   });
 
   it("깨진 데이터와 알 수 없는 버전을 기본값으로 복구한다", () => {
