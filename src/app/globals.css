@@ -659,6 +659,50 @@ body:has(.battle-page.combat-mode) .app-header { display: none; }
   .landscape-device-icon { animation: none; }
 }
 
+.children-page { min-height: calc(100dvh - 76px); padding-bottom: 70px; background: radial-gradient(circle at 50% 5%,rgba(73,190,216,.18),transparent 34%),linear-gradient(180deg,#f8f5e9,#e9f5f2); }
+.children-page .page-heading { max-width: 1180px; margin: 0 auto; padding: 44px clamp(20px,5vw,64px) 26px; }
+.children-page .page-heading h1 { max-width: 820px; margin: 8px 0 10px; font-size: clamp(34px,5vw,62px); line-height: 1.04; letter-spacing: -.055em; }
+.child-selector-shell { max-width: 1180px; margin: 0 auto; padding: 0 clamp(20px,5vw,64px); }
+.child-selector-loading,.child-selector-error { max-width: 760px; margin: 30px auto; padding: 20px; border-radius: 18px; text-align: center; font-weight: 900; }
+.child-selector-loading { color: #0b4a64; background: #e2f6fb; }
+.child-selector-error { color: #7f241d; background: #ffe4dc; }
+.child-card-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px; }
+.child-profile-card,.child-create-card { min-height: 420px; position: relative; overflow: hidden; border: 2px solid #b8d4d9; border-radius: 24px; background: linear-gradient(155deg,#123b54,#071d31); box-shadow: 0 16px 30px rgba(24,67,80,.16); }
+.child-profile-card { padding: 22px; color: white; }
+.child-profile-card.active { border-color: #ffc94a; box-shadow: 0 0 0 4px rgba(255,201,74,.2),0 20px 38px rgba(24,67,80,.24); }
+.child-profile-card img { width: 100%; height: 220px; object-fit: contain; filter: drop-shadow(0 14px 12px rgba(0,0,0,.45)); }
+.child-profile-card h2 { margin: -8px 0 4px; color: #fff5c7; font-size: 30px; }
+.child-profile-card p { margin: 0 0 18px; color: #b8dce6; }
+.child-card-status { padding: 6px 10px; position: absolute; z-index: 2; top: 16px; left: 16px; border-radius: 999px; color: #082c40; background: #ffe17d; font-size: 12px; font-weight: 900; }
+.child-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.child-card-actions .primary-button,.child-card-actions .secondary-button { min-height: 52px; padding: 9px 12px; }
+.child-create-card { padding: 32px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; color: #134b62; border-style: dashed; background: rgba(255,255,255,.78); cursor: pointer; }
+.child-create-card > span { width: 82px; height: 82px; display: grid; place-items: center; border-radius: 50%; color: white; background: #168fbd; font-size: 50px; line-height: 1; }
+.child-create-card strong { font-size: 24px; }
+.child-create-card small { color: #52717d; }
+.child-create-panel { margin-top: 24px; padding: 26px; display: grid; grid-template-columns: .8fr 1.2fr; gap: 28px; align-items: center; border: 2px solid #c1dce0; border-radius: 24px; background: rgba(255,255,255,.92); }
+.child-create-panel h2 { margin: 6px 0; font-size: 28px; }
+.child-create-panel p { color: #52717d; line-height: 1.55; }
+.child-create-fields { display: grid; grid-template-columns: 1.3fr 1fr .8fr; gap: 10px; align-items: end; }
+.child-create-fields label { display: grid; gap: 7px; font-size: 13px; font-weight: 900; }
+.child-create-fields input,.child-create-fields select { width: 100%; min-height: 52px; padding: 10px 12px; border: 2px solid #bdd3d8; border-radius: 13px; background: #fff; font: inherit; }
+.child-create-fields .primary-button { grid-column: 1/-1; }
+
+@media (max-width: 900px) {
+  .child-card-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .child-create-panel { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 620px) {
+  .children-page .page-heading { padding-top: 28px; }
+  .child-card-grid { grid-template-columns: 1fr; }
+  .child-profile-card,.child-create-card { min-height: 360px; }
+  .child-profile-card img { height: 185px; }
+  .child-create-card { min-height: 230px; }
+  .child-create-fields { grid-template-columns: 1fr; }
+  .child-create-fields .primary-button { grid-column: auto; }
+}
+
 @media (max-width: 900px) and (max-height: 520px) and (orientation: landscape) {
   .battle-overlay-dock.is-combat { width: min(440px,48vw); max-height: calc(100% - 16px); top: 8px; right: 8px; bottom: 8px; left: auto; align-content: end; }
   .battle-layout.is-combat .battle-momentum-hud { width: min(calc(46vw - 92px),338px); top: 8px; right: auto; left: 92px; transform: none; }

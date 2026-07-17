@@ -5,6 +5,56 @@ import type { TrainingAttemptRecord } from "@/types/curriculum";
 import { GAME_DATA_CHANGED_EVENT } from "@/services/online/gameStateSync";
 
 export const STORAGE_KEY = "minz-learning-game";
+export const ACTIVE_CHILD_PROFILE_KEY = "minz-active-child-profile";
+export const ACTIVE_CHILD_CHANGED_EVENT = "minz:active-child-changed";
+export const PRIMARY_CHILD_PROFILE_ID = "primary";
+const CHILD_PROFILE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+export function isValidChildProfileId(value: unknown): value is string {
+  return typeof value === "string" && CHILD_PROFILE_ID_PATTERN.test(value);
+}
+
+export function getActiveChildProfileId() {
+  if (typeof window === "undefined") return PRIMARY_CHILD_PROFILE_ID;
+  const stored = window.localStorage.getItem(ACTIVE_CHILD_PROFILE_KEY);
+  return isValidChildProfileId(stored) ? stored : PRIMARY_CHILD_PROFILE_ID;
+}
+
+export function getChildStorageKey(childProfileId = getActiveChildProfileId()) {
+  return childProfileId === PRIMARY_CHILD_PROFILE_ID
+    ? STORAGE_KEY
+    : `${STORAGE_KEY}:${childProfileId}`;
+}
+
+export function hasActiveChildGameData() {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(getChildStorageKey()) !== null;
+}
+
+export function activateChildProfile(
+  child: { id: string; displayName: string; schoolLevel: StoredGameData["playerProfile"]["schoolLevel"]; grade: number },
+) {
+  if (typeof window === "undefined" || !isValidChildProfileId(child.id)) return false;
+  window.localStorage.setItem(ACTIVE_CHILD_PROFILE_KEY, child.id);
+  const storageKey = getChildStorageKey(child.id);
+  if (window.localStorage.getItem(storageKey) === null) {
+    const initial = createDefaultGameData();
+    initial.playerProfile = {
+      displayName: child.displayName,
+      schoolLevel: child.schoolLevel,
+      grade: child.grade,
+    };
+    initial.parentSettings = {
+      ...initial.parentSettings,
+      playerName: child.displayName,
+      schoolLevel: child.schoolLevel,
+      grade: child.grade,
+    };
+    window.localStorage.setItem(storageKey, JSON.stringify(initial));
+  }
+  window.dispatchEvent(new Event(ACTIVE_CHILD_CHANGED_EVENT));
+  return true;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -148,14 +198,14 @@ export function parseStoredGameData(raw: string | null): StoredGameData {
   }
 }
 
-export function readGameData(): StoredGameData {
+export function readGameData(childProfileId = getActiveChildProfileId()): StoredGameData {
   if (typeof window === "undefined") return createDefaultGameData();
-  return parseStoredGameData(window.localStorage.getItem(STORAGE_KEY));
+  return parseStoredGameData(window.localStorage.getItem(getChildStorageKey(childProfileId)));
 }
 
-export function writeGameData(data: StoredGameData, notifySync = true) {
+export function writeGameData(data: StoredGameData, notifySync = true, childProfileId = getActiveChildProfileId()) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  window.localStorage.setItem(getChildStorageKey(childProfileId), JSON.stringify(data));
   if (notifySync) window.dispatchEvent(new Event(GAME_DATA_CHANGED_EVENT));
 }
 

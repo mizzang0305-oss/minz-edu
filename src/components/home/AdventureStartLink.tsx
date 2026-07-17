@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
-import { STORAGE_KEY } from "@/stores/storage";
+import { ACTIVE_CHILD_CHANGED_EVENT, hasActiveChildGameData } from "@/stores/storage";
 
 function subscribeToProfile(callback: () => void) {
   window.addEventListener("storage", callback);
-  return () => window.removeEventListener("storage", callback);
+  window.addEventListener(ACTIVE_CHILD_CHANGED_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(ACTIVE_CHILD_CHANGED_EVENT, callback);
+  };
 }
 
 function getProfileSnapshot() {
-  return window.localStorage.getItem(STORAGE_KEY) !== null;
+  return hasActiveChildGameData();
 }
 
 export function AdventureStartLink() {

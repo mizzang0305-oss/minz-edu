@@ -14,7 +14,7 @@ export function AppHeader() {
         <Link href="/training"><span className="nav-label">훈련장</span><span className="nav-short">연습</span></Link>
         <Link href="/inventory"><span className="nav-label">보물 가방</span><span className="nav-short">가방</span></Link>
         <Link href="/parent"><span className="nav-label">보호자</span><span className="nav-short">보호자</span></Link>
-        <Link href="/login" className="account-link"><span className="nav-label">계정</span><span className="nav-short">계정</span></Link>
+        <Link href="/children" className="account-link"><span className="nav-label">모험가 선택</span><span className="nav-short">영웅</span></Link>
       </nav>
     </header>
   );

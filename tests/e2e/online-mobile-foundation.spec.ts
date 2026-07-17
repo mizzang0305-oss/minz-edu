@@ -26,6 +26,14 @@ test("로그인 전 온라인 친구 방은 보호자 계정을 요구한다", a
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test("자녀 선택 화면은 로그인 전 보호자 인증으로 안전하게 돌아간다", async ({ page }) => {
+  await page.goto("/children");
+
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: /Google 계정 하나로/ })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test("인증 세션 API는 인증 정보 없이 닫힌 상태로 실패한다", async ({ request }) => {
   const response = await request.post("/api/auth/session", {
     data: { idToken: "not-a-token", csrfToken: "not-a-token" },

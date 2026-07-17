@@ -26,7 +26,10 @@ describe("GameSyncProvider", () => {
       if (url === "/api/auth/session") {
         return Response.json({ authenticated: true });
       }
-      if (url === "/api/guardian/game-state" && !init?.method) {
+      if (url === "/api/guardian/children" && !init?.method) {
+        return Response.json({ children: [{ id: "primary", displayName: "민표", schoolLevel: "elementary", grade: 2, characterId: "thunder-sword", friendCode: "ABCD2345" }] });
+      }
+      if (url === "/api/guardian/game-state?childProfileId=primary" && !init?.method) {
         return new Response(JSON.stringify({ error: "empty" }), { status: 404 });
       }
       if (url === "/api/auth/csrf") {
@@ -46,7 +49,8 @@ describe("GameSyncProvider", () => {
     await waitFor(() => expect(screen.getByTestId("sync-status")).toHaveTextContent("synced"));
     expect(calls).toEqual([
       "GET /api/auth/session",
-      "GET /api/guardian/game-state",
+      "GET /api/guardian/children",
+      "GET /api/guardian/game-state?childProfileId=primary",
       "GET /api/auth/csrf",
       "POST /api/guardian/children",
       "PUT /api/guardian/game-state",

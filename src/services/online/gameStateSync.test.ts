@@ -81,11 +81,12 @@ describe("guardian game state sync boundary", () => {
 
   it("rejects malformed, oversized, and privilege-shaped payloads", () => {
     const valid = createGameSyncSnapshot(createDefaultGameData());
-    expect(parseGameStateSyncRequest({ csrfToken: "token", state: valid })).not.toBeNull();
+    expect(parseGameStateSyncRequest({ childProfileId: "primary", csrfToken: "token", state: valid })).not.toBeNull();
     expect(parseGameSyncSnapshot({ ...valid, schemaVersion: 99 })).toBeNull();
     expect(parseGameSyncSnapshot({ ...valid, adventures: [{ id: "../admin" }] })).toBeNull();
     expect(parseGameSyncSnapshot({ ...valid, legacyInventory: { coins: 99_000_000, badges: [] } })).toBeNull();
-    expect(parseGameStateSyncRequest({ csrfToken: "token", state: { ...valid, guardianUid: "other" } })).toBeNull();
+    expect(parseGameStateSyncRequest({ childProfileId: "primary", csrfToken: "token", state: { ...valid, guardianUid: "other" } })).toBeNull();
+    expect(parseGameStateSyncRequest({ childProfileId: "../other", csrfToken: "token", state: valid })).toBeNull();
   });
 
   it("does not overwrite local-only fields when applying remote progress", () => {
