@@ -5,7 +5,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, Timestamp, updateDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, setDoc, Timestamp, updateDoc } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 const PROJECT_ID = "studymate-ai-v2";
@@ -61,6 +61,23 @@ describe("Firestore guardian boundaries", () => {
     await assertSucceeds(setDoc(doc(ownerDb, childPath), child));
     await assertSucceeds(getDoc(doc(ownerDb, childPath)));
     await assertFails(getDoc(doc(outsiderDb, childPath)));
+  });
+
+  it("lets only the owning guardian remove a disposable child profile", async () => {
+    const ownerDb = testEnv.authenticatedContext("guardian-a").firestore();
+    const outsiderDb = testEnv.authenticatedContext("guardian-b").firestore();
+    const childPath = "guardians/guardian-a/children/test-child";
+    await assertSucceeds(setDoc(doc(ownerDb, childPath), {
+      displayName: "전환테스트",
+      schoolLevel: "kindergarten",
+      grade: 5,
+      characterId: "thunder-sword",
+      friendCode: "ABCD2345",
+      createdAt: 1,
+      updatedAt: 1,
+    }));
+    await assertFails(deleteDoc(doc(outsiderDb, childPath)));
+    await assertSucceeds(deleteDoc(doc(ownerDb, childPath)));
   });
 
   it("rejects malformed or over-scoped child data", async () => {

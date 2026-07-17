@@ -19,6 +19,11 @@ export type ChildProfileSyncRequest = {
 
 export type ParsedChildProfileSync = Omit<ChildProfileSyncRequest, "csrfToken">;
 
+export type ChildProfileDeleteRequest = {
+  childProfileId: string;
+  csrfToken: string;
+};
+
 const CHARACTER_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const FRIEND_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
@@ -46,6 +51,16 @@ export function createChildProfileSyncRequest(
 
 export function readChildProfileCsrfToken(value: unknown): unknown {
   return isRecord(value) ? value.csrfToken : undefined;
+}
+
+export function parseChildProfileDeleteRequest(value: unknown): ChildProfileDeleteRequest | null {
+  if (!isRecord(value) || !Object.keys(value).every((key) => key === "childProfileId" || key === "csrfToken")) {
+    return null;
+  }
+  if (!isValidChildProfileId(value.childProfileId) || typeof value.csrfToken !== "string" || value.csrfToken.length < 1) {
+    return null;
+  }
+  return { childProfileId: value.childProfileId, csrfToken: value.csrfToken };
 }
 
 export function parseChildProfileSyncRequest(value: unknown): ParsedChildProfileSync | null {

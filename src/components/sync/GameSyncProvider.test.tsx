@@ -19,6 +19,36 @@ describe("GameSyncProvider", () => {
     expect(await screen.findByTestId("sync-status")).toHaveTextContent("local");
   });
 
+  it("keeps the active child local while offline and resumes remote sync after reconnecting", async () => {
+    let online = false;
+    vi.spyOn(window.navigator, "onLine", "get").mockImplementation(() => online);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/auth/session") return Response.json({ authenticated: true });
+      if (url === "/api/guardian/children" && !init?.method) {
+        return Response.json({ children: [{ id: "primary", displayName: "민표", schoolLevel: "elementary", grade: 5, characterId: "thunder-sword", friendCode: "ABCD2345" }] });
+      }
+      if (url === "/api/guardian/game-state?childProfileId=primary") return new Response(null, { status: 404 });
+      if (url === "/api/auth/csrf") return Response.json({ csrfToken: "c".repeat(64) });
+      if (url === "/api/guardian/children" && init?.method === "POST") return Response.json({ child: { id: "primary" } });
+      if (url === "/api/guardian/game-state" && init?.method === "PUT") {
+        const request = JSON.parse(String(init.body)) as { state: unknown };
+        return Response.json({ state: request.state, revision: 1 });
+      }
+      return new Response(null, { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<GameSyncProvider><StatusProbe /></GameSyncProvider>);
+    expect(await screen.findByTestId("sync-status")).toHaveTextContent("local");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    online = true;
+    window.dispatchEvent(new Event("online"));
+    await waitFor(() => expect(screen.getByTestId("sync-status")).toHaveTextContent("synced"));
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/session", expect.any(Object));
+  });
+
   it("creates the child boundary before uploading the first game state", async () => {
     const calls: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
