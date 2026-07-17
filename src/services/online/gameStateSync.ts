@@ -38,6 +38,24 @@ export type GameStateSyncRequest = {
   state: GameSyncSnapshot;
 };
 
+export type GameSyncValidationCode =
+  | "SYNC_REQUEST_SHAPE"
+  | "SYNC_CHILD_PROFILE_ID"
+  | "SYNC_CSRF_SHAPE"
+  | "SYNC_STATE_SHAPE"
+  | "SYNC_SCHEMA_VERSION"
+  | "SYNC_STATE_KEYS"
+  | "SYNC_LEGACY_INVENTORY"
+  | "SYNC_ARCHIVED_IDS"
+  | "SYNC_ADVENTURES_SHAPE"
+  | "SYNC_ADVENTURE_ITEM"
+  | "SYNC_TRAINING_SHAPE"
+  | "SYNC_TRAINING_ITEM"
+  | "SYNC_STAGE_PROGRESS"
+  | "SYNC_LEARNING_PROGRESS"
+  | "SYNC_TEAM_REWARDS"
+  | "SYNC_UNLOCKED_SKILLS";
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -172,11 +190,38 @@ function parseGoalProgress(value: unknown): GameSyncSnapshot["learningGoalProgre
   return parsed;
 }
 
+export function getGameSyncSnapshotValidationCode(value: unknown): GameSyncValidationCode | null {
+  if (!isRecord(value)) return "SYNC_STATE_SHAPE";
+  if (value.schemaVersion !== GAME_SYNC_SCHEMA_VERSION) return "SYNC_SCHEMA_VERSION";
+  if (!hasOnlyKeys(value, ["schemaVersion", "legacyInventory", "archivedAdventureIds", "adventures", "trainingAttempts", "stageProgress", "learningGoalProgress", "teamRewards", "unlockedTeamSkills"])) return "SYNC_STATE_KEYS";
+  if (
+    !isRecord(value.legacyInventory) ||
+    !hasOnlyKeys(value.legacyInventory, ["coins", "badges"]) ||
+    !isSafeInteger(value.legacyInventory.coins, 10_000_000) ||
+    !parseTextList(value.legacyInventory.badges)
+  ) return "SYNC_LEGACY_INVENTORY";
+  const archivedAdventureIds = parseTextList(value.archivedAdventureIds, MAX_ARCHIVED_ADVENTURE_IDS);
+  if (!archivedAdventureIds || archivedAdventureIds.some((id) => !isSafeId(id))) return "SYNC_ARCHIVED_IDS";
+  if (!Array.isArray(value.adventures) || value.adventures.length > MAX_ADVENTURES) return "SYNC_ADVENTURES_SHAPE";
+  if (value.adventures.some((item) => !parseAdventure(item))) return "SYNC_ADVENTURE_ITEM";
+  if (!Array.isArray(value.trainingAttempts) || value.trainingAttempts.length > MAX_TRAINING_ATTEMPTS) return "SYNC_TRAINING_SHAPE";
+  if (value.trainingAttempts.some((item) => !parseTrainingAttempt(item))) return "SYNC_TRAINING_ITEM";
+  if (!parseStageProgress(value.stageProgress)) return "SYNC_STAGE_PROGRESS";
+  if (!parseGoalProgress(value.learningGoalProgress)) return "SYNC_LEARNING_PROGRESS";
+  if (!parseTextList(value.teamRewards)) return "SYNC_TEAM_REWARDS";
+  if (!parseTextList(value.unlockedTeamSkills)) return "SYNC_UNLOCKED_SKILLS";
+  return null;
+}
+
+export function getGameStateSyncValidationCode(value: unknown): GameSyncValidationCode | null {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["childProfileId", "csrfToken", "state"])) return "SYNC_REQUEST_SHAPE";
+  if (!isValidChildProfileId(value.childProfileId)) return "SYNC_CHILD_PROFILE_ID";
+  if (typeof value.csrfToken !== "string") return "SYNC_CSRF_SHAPE";
+  return getGameSyncSnapshotValidationCode(value.state);
+}
+
 export function parseGameSyncSnapshot(value: unknown): GameSyncSnapshot | null {
-  if (!isRecord(value) || value.schemaVersion !== GAME_SYNC_SCHEMA_VERSION) return null;
-  if (!hasOnlyKeys(value, ["schemaVersion", "legacyInventory", "archivedAdventureIds", "adventures", "trainingAttempts", "stageProgress", "learningGoalProgress", "teamRewards", "unlockedTeamSkills"])) return null;
-  if (!isRecord(value.legacyInventory) || !isSafeInteger(value.legacyInventory.coins, 10_000_000)) return null;
-  if (!hasOnlyKeys(value.legacyInventory, ["coins", "badges"])) return null;
+  if (getGameSyncSnapshotValidationCode(value) !== null || !isRecord(value) || !isRecord(value.legacyInventory)) return null;
   const legacyBadges = parseTextList(value.legacyInventory.badges);
   const archivedAdventureIds = parseTextList(value.archivedAdventureIds, MAX_ARCHIVED_ADVENTURE_IDS);
   const teamRewards = parseTextList(value.teamRewards);
@@ -184,15 +229,12 @@ export function parseGameSyncSnapshot(value: unknown): GameSyncSnapshot | null {
   const stageProgress = parseStageProgress(value.stageProgress);
   const learningGoalProgress = parseGoalProgress(value.learningGoalProgress);
   if (!legacyBadges || !archivedAdventureIds || !teamRewards || !unlockedTeamSkills || !stageProgress || !learningGoalProgress) return null;
-  if (archivedAdventureIds.some((id) => !isSafeId(id))) return null;
-  if (!Array.isArray(value.adventures) || value.adventures.length > MAX_ADVENTURES) return null;
-  if (!Array.isArray(value.trainingAttempts) || value.trainingAttempts.length > MAX_TRAINING_ATTEMPTS) return null;
-  const adventures = value.adventures.map(parseAdventure);
-  const trainingAttempts = value.trainingAttempts.map(parseTrainingAttempt);
+  const adventures = (value.adventures as unknown[]).map(parseAdventure);
+  const trainingAttempts = (value.trainingAttempts as unknown[]).map(parseTrainingAttempt);
   if (adventures.some((item) => !item) || trainingAttempts.some((item) => !item)) return null;
   return {
     schemaVersion: GAME_SYNC_SCHEMA_VERSION,
-    legacyInventory: { coins: value.legacyInventory.coins, badges: legacyBadges },
+    legacyInventory: { coins: Number(value.legacyInventory.coins), badges: legacyBadges },
     archivedAdventureIds,
     adventures: adventures as SyncedAdventure[],
     trainingAttempts: trainingAttempts as TrainingAttemptRecord[],
@@ -204,8 +246,7 @@ export function parseGameSyncSnapshot(value: unknown): GameSyncSnapshot | null {
 }
 
 export function parseGameStateSyncRequest(value: unknown): GameStateSyncRequest | null {
-  if (!isRecord(value) || typeof value.csrfToken !== "string" || !isValidChildProfileId(value.childProfileId)) return null;
-  if (!hasOnlyKeys(value, ["childProfileId", "csrfToken", "state"])) return null;
+  if (getGameStateSyncValidationCode(value) !== null || !isRecord(value) || typeof value.csrfToken !== "string" || typeof value.childProfileId !== "string") return null;
   const state = parseGameSyncSnapshot(value.state);
   return state ? { childProfileId: value.childProfileId, csrfToken: value.csrfToken, state } : null;
 }
@@ -216,6 +257,127 @@ export function readGameStateSyncCsrfToken(value: unknown): unknown {
 
 function uniqueTexts(values: string[], maximum = MAX_LIST_ITEMS) {
   return Array.from(new Set(values)).slice(0, maximum);
+}
+
+const LEGACY_TIMESTAMP = "1970-01-01T00:00:00.000Z";
+
+function normalizeCounter(value: unknown, maximum = MAX_COUNTER) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.min(maximum, Math.max(0, Math.trunc(value)));
+}
+
+function normalizeTimestamp(value: unknown) {
+  return isIsoTimestamp(value) ? value : LEGACY_TIMESTAMP;
+}
+
+function normalizeText(value: unknown, fallback: string) {
+  if (typeof value !== "string") return fallback;
+  const normalized = value.trim().slice(0, MAX_TEXT_LENGTH);
+  return normalized || fallback;
+}
+
+function normalizeTextList(value: unknown, maximum = MAX_LIST_ITEMS) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.flatMap((item) => {
+    if (typeof item !== "string") return [];
+    const normalized = item.trim().slice(0, MAX_TEXT_LENGTH);
+    return normalized ? [normalized] : [];
+  }))).slice(0, maximum);
+}
+
+function normalizeRecordId(value: unknown, prefix: string, index: number, timestamp: string) {
+  if (isSafeId(value)) return value;
+  const timestampPart = Math.max(0, Date.parse(timestamp));
+  return `${prefix}-${index}-${timestampPart}`;
+}
+
+function normalizeAdventure(value: unknown, index: number): SyncedAdventure | null {
+  if (!isRecord(value)) return null;
+  const completedAt = normalizeTimestamp(value.completedAt);
+  const firstTryCorrect = value.firstTryCorrect === undefined ? undefined : normalizeCounter(value.firstTryCorrect, 100);
+  const completedQuestIds = normalizeTextList(value.completedQuestIds, 40);
+  const discoveredSecretIds = normalizeTextList(value.discoveredSecretIds, 40);
+  const stageId = STAGE_IDS.includes(value.stageId as StageProgress["stageId"])
+    ? value.stageId as StageProgress["stageId"]
+    : undefined;
+  const learningGoalId = isSafeId(value.learningGoalId) ? value.learningGoalId : undefined;
+  return {
+    id: normalizeRecordId(value.id, "legacy-adventure", index, completedAt),
+    completedAt,
+    mode: value.mode === "local-shared-screen" ? "local-shared-screen" : "solo",
+    completedMissions: normalizeCounter(value.completedMissions, 100),
+    ...(firstTryCorrect !== undefined ? { firstTryCorrect } : {}),
+    retryCount: normalizeCounter(value.retryCount, 1_000),
+    hintCount: normalizeCounter(value.hintCount, 1_000),
+    specialSkill: normalizeText(value.specialSkill, "모험 스킬"),
+    coins: normalizeCounter(value.coins, 10_000),
+    badges: normalizeTextList(value.badges, 20),
+    teamRewards: normalizeTextList(value.teamRewards, 20),
+    ...(stageId ? { stageId } : {}),
+    ...(completedQuestIds.length > 0 ? { completedQuestIds } : {}),
+    ...(discoveredSecretIds.length > 0 ? { discoveredSecretIds } : {}),
+    ...(learningGoalId ? { learningGoalId } : {}),
+  };
+}
+
+function normalizeTrainingAttempt(value: unknown, index: number): TrainingAttemptRecord | null {
+  if (!isRecord(value) || !isSafeId(value.goalId)) return null;
+  const completedAt = normalizeTimestamp(value.completedAt);
+  const firstTryCorrect = normalizeCounter(value.firstTryCorrect, 100);
+  const questionCount = Math.max(firstTryCorrect, normalizeCounter(value.questionCount, 100));
+  return {
+    id: normalizeRecordId(value.id, "legacy-training", index, completedAt),
+    goalId: value.goalId,
+    mode: value.mode === "diagnostic" ? "diagnostic" : "practice",
+    completedAt,
+    questionCount,
+    firstTryCorrect,
+    retryCount: normalizeCounter(value.retryCount, 1_000),
+    hintCount: normalizeCounter(value.hintCount, 1_000),
+    passed: value.passed === true,
+  };
+}
+
+function normalizeStageProgress(value: unknown): GameSyncSnapshot["stageProgress"] {
+  const source = isRecord(value) ? value : {};
+  return Object.fromEntries(STAGE_IDS.map((stageId) => {
+    const candidate = isRecord(source[stageId]) ? source[stageId] : {};
+    const defaultStatus = stageId === "number-forest" ? "available" : "locked";
+    const status = candidate.status === "locked" || candidate.status === "available" || candidate.status === "cleared"
+      ? candidate.status
+      : defaultStatus;
+    const clearedAt = isIsoTimestamp(candidate.clearedAt) ? candidate.clearedAt : undefined;
+    return [stageId, {
+      stageId,
+      status,
+      completedQuestIds: normalizeTextList(candidate.completedQuestIds, 60),
+      discoveredSecretIds: normalizeTextList(candidate.discoveredSecretIds, 60),
+      ...(clearedAt ? { clearedAt } : {}),
+    }];
+  })) as GameSyncSnapshot["stageProgress"];
+}
+
+function normalizeLearningGoalProgress(value: unknown): GameSyncSnapshot["learningGoalProgress"] {
+  if (!isRecord(value)) return {};
+  const result: GameSyncSnapshot["learningGoalProgress"] = {};
+  for (const [goalId, candidate] of Object.entries(value).slice(0, MAX_GOALS)) {
+    if (!isSafeId(goalId) || !isRecord(candidate)) continue;
+    const firstTryCorrect = normalizeCounter(candidate.firstTryCorrect);
+    const status = candidate.status === "in-progress" || candidate.status === "mastered" || candidate.status === "needs-practice"
+      ? candidate.status
+      : "ready";
+    result[goalId] = {
+      goalId,
+      status,
+      attempts: normalizeCounter(candidate.attempts),
+      firstTryCorrect,
+      questionCount: Math.max(firstTryCorrect, normalizeCounter(candidate.questionCount)),
+      retryCount: normalizeCounter(candidate.retryCount),
+      hintCount: normalizeCounter(candidate.hintCount),
+      updatedAt: normalizeTimestamp(candidate.updatedAt),
+    };
+  }
+  return result;
 }
 
 function dedupeById<T extends { id: string; completedAt: string }>(items: T[]) {
@@ -282,12 +444,13 @@ function mergeGoalProgress(
       retryCount: relevantAdventures.reduce((sum, item) => sum + item.retryCount, 0) + relevantTraining.reduce((sum, item) => sum + item.retryCount, 0),
       hintCount: relevantAdventures.reduce((sum, item) => sum + item.hintCount, 0) + relevantTraining.reduce((sum, item) => sum + item.hintCount, 0),
     };
+    const firstTryCorrect = Math.max(a?.firstTryCorrect ?? 0, b?.firstTryCorrect ?? 0, eventTotals.firstTryCorrect);
     result[goalId] = {
       goalId,
       status: mastered ? "mastered" : latest?.status ?? baseline?.status ?? "ready",
       attempts: Math.max(a?.attempts ?? 0, b?.attempts ?? 0, eventTotals.attempts),
-      firstTryCorrect: Math.max(a?.firstTryCorrect ?? 0, b?.firstTryCorrect ?? 0, eventTotals.firstTryCorrect),
-      questionCount: Math.max(a?.questionCount ?? 0, b?.questionCount ?? 0, eventTotals.questionCount),
+      firstTryCorrect,
+      questionCount: Math.max(firstTryCorrect, a?.questionCount ?? 0, b?.questionCount ?? 0, eventTotals.questionCount),
       retryCount: Math.max(a?.retryCount ?? 0, b?.retryCount ?? 0, eventTotals.retryCount),
       hintCount: Math.max(a?.hintCount ?? 0, b?.hintCount ?? 0, eventTotals.hintCount),
       updatedAt,
@@ -331,45 +494,39 @@ export function mergeGameSyncSnapshots(left: GameSyncSnapshot, right: GameSyncSn
 }
 
 export function createGameSyncSnapshot(data: StoredGameData): GameSyncSnapshot {
-  const adventures = dedupeById(data.playHistory.map((record) => ({
-    id: record.id,
-    completedAt: record.completedAt,
-    mode: record.mode,
-    completedMissions: record.completedMissions,
-    ...(record.firstTryCorrect !== undefined ? { firstTryCorrect: record.firstTryCorrect } : {}),
-    retryCount: record.retryCount,
-    hintCount: record.hintCount,
-    specialSkill: record.specialSkill,
-    coins: record.coins,
-    badges: uniqueTexts(record.badges, 20),
-    teamRewards: uniqueTexts(record.teamRewards, 20),
-    ...(record.stageId ? { stageId: record.stageId } : {}),
-    ...(record.completedQuestIds ? { completedQuestIds: uniqueTexts(record.completedQuestIds, 40) } : {}),
-    ...(record.discoveredSecretIds ? { discoveredSecretIds: uniqueTexts(record.discoveredSecretIds, 40) } : {}),
-    ...(record.learningGoalId ? { learningGoalId: record.learningGoalId } : {}),
-  }))).slice(-MAX_ADVENTURES);
+  const sourceAdventures = Array.isArray(data.playHistory) ? data.playHistory : [];
+  const sourceTraining = Array.isArray(data.trainingHistory) ? data.trainingHistory : [];
+  const adventures = dedupeById((sourceAdventures as unknown[])
+    .map(normalizeAdventure)
+    .filter((record): record is SyncedAdventure => record !== null))
+    .slice(-MAX_ADVENTURES);
   const representedCoins = adventures.reduce((sum, item) => sum + item.coins, 0);
   const representedBadges = new Set(adventures.flatMap((item) => item.badges));
-  const learningGoalProgress = Object.fromEntries(
-    Object.entries(data.learningGoalProgress).map(([goalId, progress]) => [goalId, {
-      ...progress,
-      questionCount: Math.max(progress.questionCount, progress.firstTryCorrect),
-    }]),
-  );
-  return {
+  const inventory: Record<string, unknown> = isRecord(data.inventory) ? data.inventory : {};
+  const inventoryBadges = normalizeTextList(inventory.badges);
+  const trainingAttempts = dedupeById((sourceTraining as unknown[])
+    .map(normalizeTrainingAttempt)
+    .filter((record): record is TrainingAttemptRecord => record !== null))
+    .slice(-MAX_TRAINING_ATTEMPTS);
+  const snapshot: GameSyncSnapshot = {
     schemaVersion: GAME_SYNC_SCHEMA_VERSION,
     legacyInventory: {
-      coins: Math.max(0, data.inventory.coins - representedCoins),
-      badges: data.inventory.badges.filter((badge) => !representedBadges.has(badge)).slice(0, MAX_LIST_ITEMS),
+      coins: Math.max(0, normalizeCounter(inventory.coins, 10_000_000) - representedCoins),
+      badges: inventoryBadges.filter((badge) => !representedBadges.has(badge)).slice(0, MAX_LIST_ITEMS),
     },
     archivedAdventureIds: [],
     adventures,
-    trainingAttempts: dedupeById(data.trainingHistory).slice(-MAX_TRAINING_ATTEMPTS),
-    stageProgress: data.stageProgress,
-    learningGoalProgress,
-    teamRewards: uniqueTexts(data.teamRewards),
-    unlockedTeamSkills: uniqueTexts(data.unlockedTeamSkills),
+    trainingAttempts,
+    stageProgress: normalizeStageProgress(data.stageProgress),
+    learningGoalProgress: normalizeLearningGoalProgress(data.learningGoalProgress),
+    teamRewards: normalizeTextList(data.teamRewards),
+    unlockedTeamSkills: normalizeTextList(data.unlockedTeamSkills),
   };
+  const parsed = parseGameSyncSnapshot(snapshot);
+  if (!parsed) {
+    throw new Error(getGameSyncSnapshotValidationCode(snapshot) ?? "SYNC_NORMALIZATION");
+  }
+  return parsed;
 }
 
 export function applyGameSyncSnapshot(local: StoredGameData, remote: GameSyncSnapshot): StoredGameData {
