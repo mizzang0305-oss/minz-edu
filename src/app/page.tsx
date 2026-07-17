@@ -1,10 +1,12 @@
 import Link from "next/link";
 import Image from "next/image";
 import { AdventureStartLink } from "@/components/home/AdventureStartLink";
+import { GameIntro } from "@/components/home/GameIntro";
 
 export default function HomePage() {
   return (
     <main className="home-page game-home">
+      <GameIntro />
       <section className="game-landing">
         <div className="game-landing-vignette" />
         <div className="game-logo-lockup">
@@ -18,7 +20,7 @@ export default function HomePage() {
           <div className="game-mode-chips"><span>5~10분 한 판</span><span>혼자 또는 친구와</span><span>보물 모으기</span></div>
         </div>
         <div className="landing-cast" aria-label="두 영웅과 첫 번째 숲 친구의 만남">
-          <figure className="landing-hero landing-thunder"><span className="landing-aura" /><Image src="/game-assets/duelyst/hero-thunder.webp" alt="번개 검사" width="420" height="304" /><figcaption>번개 검사</figcaption></figure>
+          <figure className="landing-hero landing-thunder"><span className="landing-aura" /><Image src="/game-assets/duelyst/hero-thunder.webp" alt="번개 검사" width="420" height="304" loading="eager" /><figcaption>번개 검사</figcaption></figure>
           <figure className="landing-hero landing-magic"><span className="landing-aura" /><Image src="/game-assets/duelyst/hero-magic.webp" alt="마력 추적자" width="420" height="304" /><figcaption>마력 추적자</figcaption></figure>
           <figure className="landing-boss"><span className="boss-number">첫 친구</span><Image src="/game-assets/superpowers-rpg/boss-slime.png" alt="잠든 씨앗 슬라임" width="141" height="107" unoptimized /><figcaption>잠든 씨앗 슬라임</figcaption></figure>
         </div>
