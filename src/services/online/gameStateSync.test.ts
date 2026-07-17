@@ -223,6 +223,41 @@ describe("guardian game state sync boundary", () => {
     expect(parseGameSyncSnapshot(merged)).not.toBeNull();
   });
 
+  it("applies normalized synced fields while preserving local-only adventure details", () => {
+    const record = adventure("legacy-coins", 20_000, "2026-07-15T06:00:00.000Z");
+    record.playerNames = ["로컬 영웅"];
+    record.thought = "기기에만 남는 생각";
+    record.mapId = "local-map";
+    const data = gameWith([record]);
+    data.inventory.coins = 20_000;
+
+    const snapshot = createGameSyncSnapshot(data);
+    const restored = applyGameSyncSnapshot(data, snapshot);
+
+    expect(snapshot.adventures[0].coins).toBe(10_000);
+    expect(snapshot.legacyInventory.coins).toBe(10_000);
+    expect(restored.inventory.coins).toBe(20_000);
+    expect(restored.playHistory[0]).toMatchObject({
+      coins: 10_000,
+      playerNames: ["로컬 영웅"],
+      thought: "기기에만 남는 생각",
+      mapId: "local-map",
+    });
+  });
+
+  it("keeps distinct invalid legacy IDs separate across offline devices", () => {
+    const leftRecord = adventure("../phone-private", 10, "invalid");
+    const rightRecord = adventure("../tablet-private", 10, "invalid");
+    const left = createGameSyncSnapshot(gameWith([leftRecord]));
+    const right = createGameSyncSnapshot(gameWith([rightRecord]));
+    const merged = mergeGameSyncSnapshots(left, right);
+
+    expect(left.adventures[0].id).toMatch(/^legacy-adventure-/);
+    expect(right.adventures[0].id).toMatch(/^legacy-adventure-/);
+    expect(left.adventures[0].id).not.toBe(right.adventures[0].id);
+    expect(merged.adventures).toHaveLength(2);
+  });
+
   it("does not overwrite local-only fields when applying remote progress", () => {
     const local = gameWith([]);
     local.opinionEntries = [{ id: "note", text: "기기 전용", createdAt: "2026-07-15T04:00:00.000Z" }];
