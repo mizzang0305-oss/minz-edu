@@ -17,11 +17,11 @@ function getProfileSnapshot() {
   return hasActiveChildGameData();
 }
 
-export function AdventureStartLink() {
+export function AdventureStartLink({ onStart }: { onStart?: () => void } = {}) {
   const hasProfile = useSyncExternalStore(subscribeToProfile, getProfileSnapshot, () => false);
 
   return (
-    <Link href={hasProfile ? "/world" : "/setup"} className="game-start-button">
+    <Link href={hasProfile ? "/world" : "/setup"} className="game-start-button" onClick={onStart}>
       <span aria-hidden="true">▶</span>
       <strong>{hasProfile ? "모험 이어하기" : "내 영웅 만들기"}</strong>
       <small>{hasProfile ? "오늘의 길로 출발" : "나이와 학습 목표 고르기"}</small>
