@@ -201,9 +201,10 @@ describe("versioned local storage", () => {
 
   it("모험 성과는 선택 목표 기술과 실제 첫 성공 수로 기록한다", () => {
     const goalId = "elementary-2-s2-math-w8";
-    saveAdventure({ id: "exact", learningGoalId: goalId, completedAt: "2026-07-13T01:00:00.000Z", mode: "solo", playerNames: ["민표"], completedMissions: 3, firstTryCorrect: 2, retryCount: 4, hintCount: 1, specialSkill: "브레이크", coins: 10, badges: [], teamRewards: [], stageId: "number-forest" });
+    saveAdventure({ id: "exact", learningGoalId: goalId, completedAt: "2026-07-13T01:00:00.000Z", mode: "solo", playerNames: ["민표"], completedMissions: 3, firstTryCorrect: 5, retryCount: 4, hintCount: 1, specialSkill: "브레이크", coins: 10, badges: [], teamRewards: [], stageId: "number-forest" });
     const stored = readGameData();
-    expect(stored.learningGoalProgress[goalId].firstTryCorrect).toBe(2);
+    expect(stored.learningGoalProgress[goalId].firstTryCorrect).toBe(5);
+    expect(stored.learningGoalProgress[goalId].questionCount).toBe(5);
     expect(stored.conceptProgress["place-value"]).toBe("익히는 중");
     expect(stored.conceptProgress["make-ten"]).toBeUndefined();
   });

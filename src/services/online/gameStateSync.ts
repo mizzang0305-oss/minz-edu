@@ -350,6 +350,12 @@ export function createGameSyncSnapshot(data: StoredGameData): GameSyncSnapshot {
   }))).slice(-MAX_ADVENTURES);
   const representedCoins = adventures.reduce((sum, item) => sum + item.coins, 0);
   const representedBadges = new Set(adventures.flatMap((item) => item.badges));
+  const learningGoalProgress = Object.fromEntries(
+    Object.entries(data.learningGoalProgress).map(([goalId, progress]) => [goalId, {
+      ...progress,
+      questionCount: Math.max(progress.questionCount, progress.firstTryCorrect),
+    }]),
+  );
   return {
     schemaVersion: GAME_SYNC_SCHEMA_VERSION,
     legacyInventory: {
@@ -360,7 +366,7 @@ export function createGameSyncSnapshot(data: StoredGameData): GameSyncSnapshot {
     adventures,
     trainingAttempts: dedupeById(data.trainingHistory).slice(-MAX_TRAINING_ATTEMPTS),
     stageProgress: data.stageProgress,
-    learningGoalProgress: data.learningGoalProgress,
+    learningGoalProgress,
     teamRewards: uniqueTexts(data.teamRewards),
     unlockedTeamSkills: uniqueTexts(data.unlockedTeamSkills),
   };
