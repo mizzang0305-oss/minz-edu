@@ -39,6 +39,16 @@ async function readResponseState(response: Response): Promise<GameSyncSnapshot |
   return parseGameSyncSnapshot((body as { state: unknown }).state);
 }
 
+async function readSyncFailureCode(response: Response) {
+  try {
+    const body = await response.clone().json() as { code?: unknown };
+    if (typeof body.code === "string" && /^SYNC_[A-Z_]+$/.test(body.code)) return body.code;
+  } catch {
+    // The status code remains enough for a privacy-safe fallback.
+  }
+  return `SYNC_HTTP_${response.status}`;
+}
+
 export function GameSyncProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<GameSyncStatus>("checking");
   const authenticated = useRef(false);
@@ -108,7 +118,11 @@ export function GameSyncProvider({ children }: { children: React.ReactNode }) {
           if (active) setStatus("local");
           return;
         }
-        if (!response.ok) throw new Error("sync");
+        if (!response.ok) {
+          const code = await readSyncFailureCode(response);
+          console.warn("game_state_sync_rejected", { code, status: response.status });
+          throw new Error(code);
+        }
         const remote = await readResponseState(response);
         if (!remote) throw new Error("response");
         const merged = applyGameSyncSnapshot(readGameData(childProfileId), remote);

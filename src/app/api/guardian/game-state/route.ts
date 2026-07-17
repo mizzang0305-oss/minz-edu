@@ -4,6 +4,7 @@ import { getGuardianSession } from "@/lib/auth/guardianSession";
 import { CSRF_COOKIE, isValidCsrfPair } from "@/lib/auth/session";
 import { readLimitedJsonBody } from "@/lib/auth/safeRequest";
 import {
+  getGameStateSyncValidationCode,
   parseGameStateSyncRequest,
   readGameStateSyncCsrfToken,
 } from "@/services/online/gameStateSync";
@@ -52,7 +53,9 @@ export async function PUT(request: Request) {
   }
   const input = parseGameStateSyncRequest(bodyResult.value);
   if (!input) {
-    return Response.json({ error: "게임 기록 형식이 올바르지 않습니다." }, { status: 400, headers: noStoreHeaders });
+    const code = getGameStateSyncValidationCode(bodyResult.value) ?? "SYNC_UNKNOWN";
+    console.warn("guardian_game_state_rejected", { code });
+    return Response.json({ error: "게임 기록 형식이 올바르지 않습니다.", code }, { status: 400, headers: noStoreHeaders });
   }
   if (!allowGameStateMutation(guardian.uid)) {
     return Response.json({ error: "동기화 요청이 너무 빠릅니다." }, { status: 429, headers: noStoreHeaders });

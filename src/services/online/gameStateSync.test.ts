@@ -3,6 +3,8 @@ import { createDefaultGameData } from "@/stores/storage";
 import {
   applyGameSyncSnapshot,
   createGameSyncSnapshot,
+  getGameStateSyncValidationCode,
+  getGameSyncSnapshotValidationCode,
   mergeGameSyncSnapshots,
   parseGameStateSyncRequest,
   parseGameSyncSnapshot,
@@ -106,6 +108,154 @@ describe("guardian game state sync boundary", () => {
 
     expect(snapshot.learningGoalProgress["elementary-5-s2-math-w8"].questionCount).toBe(5);
     expect(parseGameSyncSnapshot(snapshot)).not.toBeNull();
+  });
+
+  it("returns privacy-safe reason codes without echoing rejected values", () => {
+    const valid = createGameSyncSnapshot(createDefaultGameData());
+    const privateValue = "private-child-name";
+    const malformed = {
+      ...valid,
+      adventures: [{ id: privateValue }],
+    };
+
+    const stateCode = getGameSyncSnapshotValidationCode(malformed);
+    const requestCode = getGameStateSyncValidationCode({
+      childProfileId: `../${privateValue}`,
+      csrfToken: "token",
+      state: valid,
+    });
+
+    expect(stateCode).toBe("SYNC_ADVENTURE_ITEM");
+    expect(requestCode).toBe("SYNC_CHILD_PROFILE_ID");
+    expect(JSON.stringify({ stateCode, requestCode })).not.toContain(privateValue);
+  });
+
+  it("normalizes every cloud-synced section of a malformed legacy snapshot", () => {
+    const data = createDefaultGameData();
+    (data as unknown as { playHistory: unknown[] }).playHistory = [{
+      id: "../legacy-child-private",
+      completedAt: "not-a-date",
+      mode: "legacy-mode",
+      completedMissions: 2.8,
+      firstTryCorrect: 5.9,
+      retryCount: -2,
+      hintCount: Number.POSITIVE_INFINITY,
+      specialSkill: " ",
+      coins: 35.9,
+      badges: ["첫 모험", "", 123],
+      teamRewards: ["협동 보상", "협동 보상"],
+      stageId: "unknown-stage",
+      completedQuestIds: ["quest-1", ""],
+      discoveredSecretIds: ["secret-1"],
+      learningGoalId: "elementary-5-s2-math-w8",
+    }];
+    (data as unknown as { trainingHistory: unknown[] }).trainingHistory = [{
+      id: "../legacy-training",
+      goalId: "elementary-5-s2-math-w8",
+      mode: "old-practice",
+      completedAt: "invalid",
+      questionCount: 2,
+      firstTryCorrect: 4,
+      retryCount: -1,
+      hintCount: 1.9,
+      passed: "yes",
+    }];
+    (data as unknown as { inventory: unknown }).inventory = {
+      coins: 35.9,
+      badges: ["첫 모험", "", 123],
+    };
+    (data as unknown as { stageProgress: Record<string, unknown> }).stageProgress = {
+      "number-forest": { status: "cleared", completedQuestIds: ["forest-1"], discoveredSecretIds: [], clearedAt: "not-a-date" },
+      "word-island": { status: "available", completedQuestIds: [], discoveredSecretIds: [] },
+      "story-castle": { status: "broken", completedQuestIds: null, discoveredSecretIds: null },
+    };
+    (data as unknown as { learningGoalProgress: Record<string, unknown> }).learningGoalProgress = {
+      "elementary-5-s2-math-w8": {
+        status: "old-status",
+        attempts: 1.9,
+        firstTryCorrect: 5,
+        questionCount: 2,
+        retryCount: -3,
+        hintCount: Number.NaN,
+        updatedAt: "invalid",
+      },
+      "../private-goal": { attempts: 99 },
+    };
+    (data as unknown as { teamRewards: unknown }).teamRewards = ["협동 보상", "", 123];
+    (data as unknown as { unlockedTeamSkills: unknown }).unlockedTeamSkills = ["번개", "번개", null];
+
+    const snapshot = createGameSyncSnapshot(data);
+    const restored = applyGameSyncSnapshot(createDefaultGameData(), snapshot);
+
+    expect(getGameSyncSnapshotValidationCode(snapshot)).toBeNull();
+    expect(parseGameSyncSnapshot(snapshot)).not.toBeNull();
+    expect(snapshot.adventures).toHaveLength(1);
+    expect(snapshot.adventures[0].id).toMatch(/^legacy-adventure-/);
+    expect(snapshot.trainingAttempts).toHaveLength(1);
+    expect(snapshot.trainingAttempts[0].questionCount).toBe(4);
+    expect(snapshot.stageProgress["number-forest"].status).toBe("cleared");
+    expect(snapshot.stageProgress["word-island"].status).toBe("available");
+    expect(snapshot.stageProgress["story-castle"].status).toBe("locked");
+    expect(snapshot.learningGoalProgress["elementary-5-s2-math-w8"]).toMatchObject({
+      status: "ready",
+      firstTryCorrect: 5,
+      questionCount: 5,
+    });
+    expect(snapshot.learningGoalProgress).not.toHaveProperty("../private-goal");
+    expect(snapshot.teamRewards).toEqual(["협동 보상"]);
+    expect(snapshot.unlockedTeamSkills).toEqual(["번개"]);
+    expect(restored.inventory.coins).toBe(35);
+    expect(restored.inventory.badges).toEqual(["첫 모험"]);
+  });
+
+  it("keeps merged question totals valid when old first-try counts exceed mission counts", () => {
+    const oldAdventure = adventure("old-run", 0, "2026-07-15T05:00:00.000Z");
+    oldAdventure.completedMissions = 1;
+    oldAdventure.firstTryCorrect = 5;
+    const merged = mergeGameSyncSnapshots(
+      createGameSyncSnapshot(createDefaultGameData()),
+      createGameSyncSnapshot(gameWith([oldAdventure])),
+    );
+    const goal = merged.learningGoalProgress["elementary-2-s2-math-w8"];
+
+    expect(goal.firstTryCorrect).toBe(5);
+    expect(goal.questionCount).toBeGreaterThanOrEqual(goal.firstTryCorrect);
+    expect(parseGameSyncSnapshot(merged)).not.toBeNull();
+  });
+
+  it("applies normalized synced fields while preserving local-only adventure details", () => {
+    const record = adventure("legacy-coins", 20_000, "2026-07-15T06:00:00.000Z");
+    record.playerNames = ["로컬 영웅"];
+    record.thought = "기기에만 남는 생각";
+    record.mapId = "local-map";
+    const data = gameWith([record]);
+    data.inventory.coins = 20_000;
+
+    const snapshot = createGameSyncSnapshot(data);
+    const restored = applyGameSyncSnapshot(data, snapshot);
+
+    expect(snapshot.adventures[0].coins).toBe(10_000);
+    expect(snapshot.legacyInventory.coins).toBe(10_000);
+    expect(restored.inventory.coins).toBe(20_000);
+    expect(restored.playHistory[0]).toMatchObject({
+      coins: 10_000,
+      playerNames: ["로컬 영웅"],
+      thought: "기기에만 남는 생각",
+      mapId: "local-map",
+    });
+  });
+
+  it("keeps distinct invalid legacy IDs separate across offline devices", () => {
+    const leftRecord = adventure("../phone-private", 10, "invalid");
+    const rightRecord = adventure("../tablet-private", 10, "invalid");
+    const left = createGameSyncSnapshot(gameWith([leftRecord]));
+    const right = createGameSyncSnapshot(gameWith([rightRecord]));
+    const merged = mergeGameSyncSnapshots(left, right);
+
+    expect(left.adventures[0].id).toMatch(/^legacy-adventure-/);
+    expect(right.adventures[0].id).toMatch(/^legacy-adventure-/);
+    expect(left.adventures[0].id).not.toBe(right.adventures[0].id);
+    expect(merged.adventures).toHaveLength(2);
   });
 
   it("does not overwrite local-only fields when applying remote progress", () => {
