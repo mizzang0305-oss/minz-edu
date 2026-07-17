@@ -125,6 +125,9 @@ describe("Firestore guardian boundaries", () => {
     const stateRef = doc(ownerDb, "guardians/guardian-a/children/primary/gameState/current");
     await assertFails(getDoc(stateRef));
     await assertFails(setDoc(stateRef, { revision: 999 }, { merge: true }));
+    const siblingStateRef = doc(ownerDb, "guardians/guardian-a/children/child_second/gameState/current");
+    await assertFails(getDoc(siblingStateRef));
+    await assertFails(setDoc(siblingStateRef, { revision: 1, state: {} }));
   });
 });
 

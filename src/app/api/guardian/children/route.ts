@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { cookies } from "next/headers";
 import { CSRF_COOKIE, isValidCsrfPair } from "@/lib/auth/session";
@@ -7,6 +7,7 @@ import { getFirebaseAdminFirestore } from "@/lib/firebase/admin";
 import { readLimitedJsonBody } from "@/lib/auth/safeRequest";
 import {
   parseChildProfileSyncRequest,
+  readSafeStoredChildProfile,
   readChildProfileCsrfToken,
   readSafeStoredFriendCode,
 } from "@/services/online/childProfileSync";
@@ -16,12 +17,43 @@ export const dynamic = "force-dynamic";
 
 const noStoreHeaders = { "Cache-Control": "no-store" };
 const FRIEND_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const MAX_CHILD_PROFILES = 10;
 
 function createFriendCode() {
   return Array.from(
     { length: 8 },
     () => FRIEND_CODE_ALPHABET[randomInt(FRIEND_CODE_ALPHABET.length)],
   ).join("");
+}
+
+function createChildProfileId() {
+  return `child_${randomBytes(8).toString("hex")}`;
+}
+
+export async function GET() {
+  const guardian = await getGuardianSession();
+  if (!guardian) {
+    return Response.json({ error: "로그인이 필요합니다." }, { status: 401, headers: noStoreHeaders });
+  }
+
+  try {
+    const snapshot = await getFirebaseAdminFirestore()
+      .collection("guardians")
+      .doc(guardian.uid)
+      .collection("children")
+      .limit(MAX_CHILD_PROFILES + 1)
+      .get();
+    const children = snapshot.docs
+      .map((document) => readSafeStoredChildProfile(document.id, document.data()))
+      .filter((child) => child !== null)
+      .slice(0, MAX_CHILD_PROFILES);
+    return Response.json({ children }, { headers: noStoreHeaders });
+  } catch {
+    return Response.json(
+      { error: "자녀 프로필을 불러오지 못했습니다." },
+      { status: 503, headers: noStoreHeaders },
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -55,9 +87,20 @@ export async function POST(request: Request) {
   try {
     const firestore = getFirebaseAdminFirestore();
     const guardianRef = firestore.collection("guardians").doc(guardian.uid);
-    const childRef = guardianRef.collection("children").doc("primary");
+    const childProfileId = input.createNew ? createChildProfileId() : input.childProfileId ?? "primary";
+    const childRef = guardianRef.collection("children").doc(childProfileId);
     const child = await firestore.runTransaction(async (transaction) => {
-      const existing = await transaction.get(childRef);
+      const [guardianDocument, existing] = await Promise.all([
+        transaction.get(guardianRef),
+        transaction.get(childRef),
+      ]);
+      const storedIds = guardianDocument.data()?.childProfileIds;
+      const childProfileIds = Array.isArray(storedIds)
+        ? storedIds.filter((id): id is string => typeof id === "string")
+        : [];
+      if (!existing.exists && childProfileIds.length >= MAX_CHILD_PROFILES) {
+        throw new Error("child-limit");
+      }
       const friendCode = readSafeStoredFriendCode(existing.data()?.friendCode) ?? createFriendCode();
       const profile = {
         displayName: input.displayName,
@@ -73,13 +116,13 @@ export async function POST(request: Request) {
         guardianRef,
         {
           displayName: guardian.displayName,
-          childProfileIds: FieldValue.arrayUnion("primary"),
+          childProfileIds: FieldValue.arrayUnion(childProfileId),
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
       return {
-        id: "primary",
+        id: childProfileId,
         displayName: input.displayName,
         schoolLevel: input.schoolLevel,
         grade: input.grade,
@@ -88,8 +131,14 @@ export async function POST(request: Request) {
       };
     });
 
-    return Response.json({ child }, { headers: noStoreHeaders });
-  } catch {
+    return Response.json({ child }, { status: input.createNew ? 201 : 200, headers: noStoreHeaders });
+  } catch (error) {
+    if (error instanceof Error && error.message === "child-limit") {
+      return Response.json(
+        { error: `자녀 프로필은 ${MAX_CHILD_PROFILES}개까지 만들 수 있습니다.` },
+        { status: 409, headers: noStoreHeaders },
+      );
+    }
     return Response.json(
       { error: "자녀 프로필을 동기화하지 못했습니다." },
       { status: 503, headers: noStoreHeaders },

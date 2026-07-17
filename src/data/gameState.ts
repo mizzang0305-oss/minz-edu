@@ -13,22 +13,22 @@ type GameStateResult = {
   revision: number;
 };
 
-function childReference(guardianUid: string) {
+function childReference(guardianUid: string, childProfileId: string) {
   return getFirebaseAdminFirestore()
     .collection("guardians")
     .doc(guardianUid)
     .collection("children")
-    .doc("primary");
+    .doc(childProfileId);
 }
 
-function gameStateReference(guardianUid: string) {
-  return childReference(guardianUid).collection("gameState").doc("current");
+function gameStateReference(guardianUid: string, childProfileId: string) {
+  return childReference(guardianUid, childProfileId).collection("gameState").doc("current");
 }
 
-export async function readGuardianGameState(guardianUid: string): Promise<GameStateResult | null> {
+export async function readGuardianGameState(guardianUid: string, childProfileId: string): Promise<GameStateResult | null> {
   const [child, document] = await Promise.all([
-    childReference(guardianUid).get(),
-    gameStateReference(guardianUid).get(),
+    childReference(guardianUid, childProfileId).get(),
+    gameStateReference(guardianUid, childProfileId).get(),
   ]);
   if (!child.exists || !document.exists) return null;
   const state = parseGameSyncSnapshot(document.data()?.state);
@@ -39,11 +39,12 @@ export async function readGuardianGameState(guardianUid: string): Promise<GameSt
 
 export async function mergeGuardianGameState(
   guardianUid: string,
+  childProfileId: string,
   incoming: GameSyncSnapshot,
 ): Promise<GameStateResult | "missing-child"> {
   const firestore = getFirebaseAdminFirestore();
-  const childRef = childReference(guardianUid);
-  const stateRef = gameStateReference(guardianUid);
+  const childRef = childReference(guardianUid, childProfileId);
+  const stateRef = gameStateReference(guardianUid, childProfileId);
 
   return firestore.runTransaction(async (transaction) => {
     const [child, existing] = await Promise.all([

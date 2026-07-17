@@ -1,7 +1,13 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { readGameData, writeGameData } from "@/stores/storage";
+import {
+  ACTIVE_CHILD_CHANGED_EVENT,
+  activateChildProfile,
+  getActiveChildProfileId,
+  readGameData,
+  writeGameData,
+} from "@/stores/storage";
 import {
   applyGameSyncSnapshot,
   createGameSyncSnapshot,
@@ -9,7 +15,7 @@ import {
   parseGameSyncSnapshot,
   type GameSyncSnapshot,
 } from "@/services/online/gameStateSync";
-import { createChildProfileSyncRequest } from "@/services/online/childProfileSync";
+import { createChildProfileSyncRequest, type SafeChildProfile } from "@/services/online/childProfileSync";
 
 export type GameSyncStatus = "checking" | "local" | "syncing" | "synced" | "error";
 
@@ -58,34 +64,44 @@ export function GameSyncProvider({ children }: { children: React.ReactNode }) {
       return body.csrfToken;
     };
 
-    const ensureChildProfile = async () => {
-      const profile = readGameData().playerProfile;
-      const signature = `${profile.displayName}\u0000${profile.schoolLevel}\u0000${profile.grade}`;
+    const ensureChildProfile = async (childProfileId: string) => {
+      const profile = readGameData(childProfileId).playerProfile;
+      const signature = `${childProfileId}\u0000${profile.displayName}\u0000${profile.schoolLevel}\u0000${profile.grade}`;
       if (syncedProfileSignature.current === signature) return;
       const token = await getCsrfToken();
       const response = await fetchWithTimeout("/api/guardian/children", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createChildProfileSyncRequest(profile, token)),
+        body: JSON.stringify(createChildProfileSyncRequest(profile, token, "thunder-sword", childProfileId)),
       });
       if (!response.ok) throw new Error("profile");
       syncedProfileSignature.current = signature;
     };
 
     const putState = async () => {
-      if (!authenticated.current || syncing.current || !active) return;
+      if (!authenticated.current || !active) return;
+      if (syncing.current) {
+        dirtyGeneration.current += 1;
+        scheduleSync();
+        return;
+      }
       syncing.current = true;
+      const childProfileId = getActiveChildProfileId();
       const generation = dirtyGeneration.current;
       setStatus("syncing");
       try {
-        await ensureChildProfile();
+        await ensureChildProfile(childProfileId);
         const token = await getCsrfToken();
         const response = await fetchWithTimeout("/api/guardian/game-state", {
           method: "PUT",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ csrfToken: token, state: createGameSyncSnapshot(readGameData()) }),
+          body: JSON.stringify({
+            childProfileId,
+            csrfToken: token,
+            state: createGameSyncSnapshot(readGameData(childProfileId)),
+          }),
         });
         if (response.status === 401) {
           authenticated.current = false;
@@ -95,8 +111,8 @@ export function GameSyncProvider({ children }: { children: React.ReactNode }) {
         if (!response.ok) throw new Error("sync");
         const remote = await readResponseState(response);
         if (!remote) throw new Error("response");
-        const merged = applyGameSyncSnapshot(readGameData(), remote);
-        writeGameData(merged, false);
+        const merged = applyGameSyncSnapshot(readGameData(childProfileId), remote);
+        writeGameData(merged, false, childProfileId);
         if (active) setStatus("synced");
         if (dirtyGeneration.current !== generation) scheduleSync();
       } catch {
@@ -137,7 +153,20 @@ export function GameSyncProvider({ children }: { children: React.ReactNode }) {
           if (active) setStatus("local");
           return;
         }
-        const response = await fetchWithTimeout("/api/guardian/game-state", {
+        authenticated.current = true;
+        let childProfileId = getActiveChildProfileId();
+        const childrenResponse = await fetchWithTimeout("/api/guardian/children", {
+          cache: "no-store",
+          credentials: "same-origin",
+        });
+        if (!childrenResponse.ok) throw new Error("children");
+        const childList = await childrenResponse.json() as { children?: SafeChildProfile[] };
+        const remoteChildren = Array.isArray(childList.children) ? childList.children : [];
+        if (remoteChildren.length > 0 && !remoteChildren.some((child) => child.id === childProfileId)) {
+          if (activateChildProfile(remoteChildren[0])) return;
+          childProfileId = remoteChildren[0].id;
+        }
+        const response = await fetchWithTimeout(`/api/guardian/game-state?childProfileId=${encodeURIComponent(childProfileId)}`, {
           cache: "no-store",
           credentials: "same-origin",
         });
@@ -148,12 +177,12 @@ export function GameSyncProvider({ children }: { children: React.ReactNode }) {
         if (response.ok) {
           const remote = await readResponseState(response);
           if (!remote) throw new Error("response");
-          writeGameData(applyGameSyncSnapshot(readGameData(), remote), false);
+          if (getActiveChildProfileId() !== childProfileId) return;
+          writeGameData(applyGameSyncSnapshot(readGameData(childProfileId), remote), false, childProfileId);
         } else if (response.status !== 404) {
           throw new Error("bootstrap");
         }
 
-        authenticated.current = true;
         dirtyGeneration.current += 1;
         await putState();
       } catch {
@@ -161,13 +190,22 @@ export function GameSyncProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    const onActiveChildChanged = () => {
+      syncedProfileSignature.current = "";
+      dirtyGeneration.current += 1;
+      if (active) setStatus("checking");
+      void bootstrap();
+    };
+
     window.addEventListener(GAME_DATA_CHANGED_EVENT, onGameDataChanged);
+    window.addEventListener(ACTIVE_CHILD_CHANGED_EVENT, onActiveChildChanged);
     window.addEventListener("online", onOnline);
     void bootstrap();
     return () => {
       active = false;
       if (timer.current !== null) window.clearTimeout(timer.current);
       window.removeEventListener(GAME_DATA_CHANGED_EVENT, onGameDataChanged);
+      window.removeEventListener(ACTIVE_CHILD_CHANGED_EVENT, onActiveChildChanged);
       window.removeEventListener("online", onOnline);
     };
   }, []);

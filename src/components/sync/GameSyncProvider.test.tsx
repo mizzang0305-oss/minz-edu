@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GameSyncProvider, useGameSyncStatus } from "./GameSyncProvider";
+import { ACTIVE_CHILD_PROFILE_KEY } from "@/stores/storage";
 
 function StatusProbe() {
   return <span data-testid="sync-status">{useGameSyncStatus()}</span>;
@@ -26,7 +27,10 @@ describe("GameSyncProvider", () => {
       if (url === "/api/auth/session") {
         return Response.json({ authenticated: true });
       }
-      if (url === "/api/guardian/game-state" && !init?.method) {
+      if (url === "/api/guardian/children" && !init?.method) {
+        return Response.json({ children: [{ id: "primary", displayName: "민표", schoolLevel: "elementary", grade: 2, characterId: "thunder-sword", friendCode: "ABCD2345" }] });
+      }
+      if (url === "/api/guardian/game-state?childProfileId=primary" && !init?.method) {
         return new Response(JSON.stringify({ error: "empty" }), { status: 404 });
       }
       if (url === "/api/auth/csrf") {
@@ -46,10 +50,44 @@ describe("GameSyncProvider", () => {
     await waitFor(() => expect(screen.getByTestId("sync-status")).toHaveTextContent("synced"));
     expect(calls).toEqual([
       "GET /api/auth/session",
-      "GET /api/guardian/game-state",
+      "GET /api/guardian/children",
+      "GET /api/guardian/game-state?childProfileId=primary",
       "GET /api/auth/csrf",
       "POST /api/guardian/children",
       "PUT /api/guardian/game-state",
     ]);
+  });
+
+  it("selects an existing remote child before any legacy primary upload", async () => {
+    const requests: Array<{ url: string; method: string; body?: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      requests.push({ url, method, ...(typeof init?.body === "string" ? { body: init.body } : {}) });
+      if (url === "/api/auth/session") return Response.json({ authenticated: true });
+      if (url === "/api/guardian/children" && method === "GET") {
+        return Response.json({ children: [{ id: "child_second", displayName: "하람", schoolLevel: "kindergarten", grade: 6, characterId: "thunder-sword", friendCode: "EFGH6789" }] });
+      }
+      if (url === "/api/guardian/game-state?childProfileId=child_second") {
+        return new Response(JSON.stringify({ error: "empty" }), { status: 404 });
+      }
+      if (url === "/api/auth/csrf") return Response.json({ csrfToken: "b".repeat(64) });
+      if (url === "/api/guardian/children" && method === "POST") {
+        return Response.json({ child: { id: "child_second" } });
+      }
+      if (url === "/api/guardian/game-state" && method === "PUT") {
+        const request = JSON.parse(String(init?.body)) as { state: unknown };
+        return Response.json({ state: request.state, revision: 1 });
+      }
+      return new Response(null, { status: 500 });
+    }));
+
+    render(<GameSyncProvider><StatusProbe /></GameSyncProvider>);
+    await waitFor(() => expect(screen.getByTestId("sync-status")).toHaveTextContent("synced"));
+
+    expect(localStorage.getItem(ACTIVE_CHILD_PROFILE_KEY)).toBe("child_second");
+    expect(requests.some(({ url }) => url.includes("childProfileId=primary"))).toBe(false);
+    const profileUpload = requests.find(({ url, method }) => url === "/api/guardian/children" && method === "POST");
+    expect(JSON.parse(profileUpload?.body ?? "{}")).toMatchObject({ childProfileId: "child_second" });
   });
 });

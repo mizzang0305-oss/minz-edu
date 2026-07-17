@@ -5,6 +5,7 @@ import { getFirebaseAdminFirestore } from "@/lib/firebase/admin";
 import { createOnlineRoom, RoomServiceError } from "@/services/online/serverRoom";
 import { allowRoomMutation } from "@/services/online/roomRateLimit";
 import { readLimitedJsonBody } from "@/lib/auth/safeRequest";
+import { isValidChildProfileId } from "@/services/online/childProfileSync";
 
 export const dynamic = "force-dynamic";
 const noStoreHeaders = { "Cache-Control": "no-store" };
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
   if (!isValidCsrfPair(cookieStore.get(CSRF_COOKIE)?.value, body.csrfToken)) {
     return Response.json({ error: "보안 확인에 실패했습니다." }, { status: 403, headers: noStoreHeaders });
   }
-  if (body.childProfileId !== "primary") {
+  if (!isValidChildProfileId(body.childProfileId)) {
     return Response.json({ error: "자녀 프로필이 올바르지 않습니다." }, { status: 400, headers: noStoreHeaders });
   }
   if (!allowRoomMutation(guardian.uid)) {
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const room = await createOnlineRoom(getFirebaseAdminFirestore(), guardian.uid, "primary");
+    const room = await createOnlineRoom(getFirebaseAdminFirestore(), guardian.uid, body.childProfileId);
     return Response.json({ room }, { status: 201, headers: noStoreHeaders });
   } catch (error) {
     const status = error instanceof RoomServiceError && error.code === "CHILD_NOT_FOUND" ? 409 : 503;

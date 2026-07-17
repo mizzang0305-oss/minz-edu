@@ -8,18 +8,23 @@ import {
   readGameStateSyncCsrfToken,
 } from "@/services/online/gameStateSync";
 import { allowGameStateMutation } from "@/services/online/roomRateLimit";
+import { isValidChildProfileId } from "@/services/online/childProfileSync";
 
 export const dynamic = "force-dynamic";
 
 const noStoreHeaders = { "Cache-Control": "no-store" };
 
-export async function GET() {
+export async function GET(request: Request) {
   const guardian = await getGuardianSession();
   if (!guardian) {
     return Response.json({ error: "로그인이 필요합니다." }, { status: 401, headers: noStoreHeaders });
   }
+  const childProfileId = new URL(request.url).searchParams.get("childProfileId") ?? "primary";
+  if (!isValidChildProfileId(childProfileId)) {
+    return Response.json({ error: "자녀 프로필이 올바르지 않습니다." }, { status: 400, headers: noStoreHeaders });
+  }
   try {
-    const result = await readGuardianGameState(guardian.uid);
+    const result = await readGuardianGameState(guardian.uid, childProfileId);
     if (!result) {
       return Response.json({ error: "동기화된 게임 기록이 없습니다." }, { status: 404, headers: noStoreHeaders });
     }
@@ -53,7 +58,7 @@ export async function PUT(request: Request) {
     return Response.json({ error: "동기화 요청이 너무 빠릅니다." }, { status: 429, headers: noStoreHeaders });
   }
   try {
-    const result = await mergeGuardianGameState(guardian.uid, input.state);
+    const result = await mergeGuardianGameState(guardian.uid, input.childProfileId, input.state);
     if (result === "missing-child") {
       return Response.json({ error: "자녀 프로필을 먼저 저장해 주세요." }, { status: 409, headers: noStoreHeaders });
     }

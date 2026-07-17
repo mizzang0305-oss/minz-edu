@@ -6,6 +6,7 @@ import { isValidRoomCode } from "@/services/online/roomCode";
 import { joinOnlineRoom, RoomServiceError } from "@/services/online/serverRoom";
 import { allowRoomMutation } from "@/services/online/roomRateLimit";
 import { readLimitedJsonBody } from "@/lib/auth/safeRequest";
+import { isValidChildProfileId } from "@/services/online/childProfileSync";
 
 export const dynamic = "force-dynamic";
 const noStoreHeaders = { "Cache-Control": "no-store" };
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
   if (!isValidCsrfPair(cookieStore.get(CSRF_COOKIE)?.value, body.csrfToken)) {
     return Response.json({ error: "보안 확인에 실패했습니다." }, { status: 403, headers: noStoreHeaders });
   }
-  if (body.childProfileId !== "primary" || typeof body.roomCode !== "string" || !isValidRoomCode(body.roomCode)) {
+  if (!isValidChildProfileId(body.childProfileId) || typeof body.roomCode !== "string" || !isValidRoomCode(body.roomCode)) {
     return Response.json({ error: "6자리 참가 코드를 확인해 주세요." }, { status: 400, headers: noStoreHeaders });
   }
   if (!allowRoomMutation(guardian.uid)) {
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
     const room = await joinOnlineRoom(
       getFirebaseAdminFirestore(),
       guardian.uid,
-      "primary",
+      body.childProfileId,
       body.roomCode,
     );
     return Response.json({ room }, { headers: noStoreHeaders });

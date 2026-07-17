@@ -1,5 +1,6 @@
 import type { TrainingAttemptRecord } from "@/types/curriculum";
 import type { AdventureRecord, StageProgress, StoredGameData } from "@/types/progress";
+import { isValidChildProfileId } from "@/services/online/childProfileSync";
 
 export const GAME_SYNC_SCHEMA_VERSION = 1 as const;
 export const GAME_DATA_CHANGED_EVENT = "minz:game-data-changed";
@@ -32,6 +33,7 @@ export type GameSyncSnapshot = {
 };
 
 export type GameStateSyncRequest = {
+  childProfileId: string;
   csrfToken: string;
   state: GameSyncSnapshot;
 };
@@ -202,10 +204,10 @@ export function parseGameSyncSnapshot(value: unknown): GameSyncSnapshot | null {
 }
 
 export function parseGameStateSyncRequest(value: unknown): GameStateSyncRequest | null {
-  if (!isRecord(value) || typeof value.csrfToken !== "string") return null;
-  if (!hasOnlyKeys(value, ["csrfToken", "state"])) return null;
+  if (!isRecord(value) || typeof value.csrfToken !== "string" || !isValidChildProfileId(value.childProfileId)) return null;
+  if (!hasOnlyKeys(value, ["childProfileId", "csrfToken", "state"])) return null;
   const state = parseGameSyncSnapshot(value.state);
-  return state ? { csrfToken: value.csrfToken, state } : null;
+  return state ? { childProfileId: value.childProfileId, csrfToken: value.csrfToken, state } : null;
 }
 
 export function readGameStateSyncCsrfToken(value: unknown): unknown {

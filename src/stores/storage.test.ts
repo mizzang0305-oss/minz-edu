@@ -9,9 +9,27 @@ import {
   saveSettings,
   saveTrainingAttempt,
   STORAGE_KEY,
+  ACTIVE_CHILD_PROFILE_KEY,
+  activateChildProfile,
+  getChildStorageKey,
 } from "./storage";
 
 describe("versioned local storage", () => {
+  it("자녀별 게임 기록을 별도 저장소로 분리하고 primary 기록은 그대로 유지한다", () => {
+    const primary = createDefaultGameData();
+    primary.inventory.coins = 35;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(primary));
+
+    activateChildProfile({ id: "child_second", displayName: "하람", schoolLevel: "kindergarten", grade: 6 });
+    expect(localStorage.getItem(ACTIVE_CHILD_PROFILE_KEY)).toBe("child_second");
+    expect(readGameData().playerProfile.displayName).toBe("하람");
+    expect(readGameData().inventory.coins).toBe(0);
+    expect(localStorage.getItem(getChildStorageKey("child_second"))).not.toBeNull();
+
+    activateChildProfile({ id: "primary", displayName: "민즈", schoolLevel: "elementary", grade: 2 });
+    expect(readGameData().inventory.coins).toBe(35);
+  });
+
   it("깨진 데이터와 알 수 없는 버전을 기본값으로 복구한다", () => {
     expect(parseStoredGameData("not-json")).toEqual(createDefaultGameData());
     expect(parseStoredGameData(JSON.stringify({ version: 99 }))).toEqual(createDefaultGameData());

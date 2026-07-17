@@ -8,6 +8,7 @@ import { bootstrapOnlineFirebaseAuth } from "@/lib/firebase/client";
 import { getOnlineFirestore } from "@/lib/firebase/firestore";
 import { normalizeRoomCode } from "@/services/online/roomCode";
 import type { PublicRoom } from "@/services/online/serverRoom";
+import { getActiveChildProfileId } from "@/stores/storage";
 
 type Props = {
   accountConnected: boolean;
@@ -198,7 +199,7 @@ export function OnlineRoomClient({ accountConnected }: Props) {
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          childProfileId: "primary",
+          childProfileId: getActiveChildProfileId(),
           ...(endpoint.endsWith("join") ? { roomCode } : {}),
           csrfToken,
         }),

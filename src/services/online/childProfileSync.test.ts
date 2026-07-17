@@ -5,6 +5,8 @@ import {
   readSafeChildRoomIdentity,
   readSafeStoredFriendCode,
   readChildProfileCsrfToken,
+  isValidChildProfileId,
+  readSafeStoredChildProfile,
 } from "./childProfileSync";
 
 describe("child profile sync boundary", () => {
@@ -93,5 +95,29 @@ describe("child profile sync boundary", () => {
     expect(readSafeStoredFriendCode("ABCD2345")).toBe("ABCD2345");
     expect(readSafeStoredFriendCode("ABCI2345")).toBeNull();
     expect(readSafeStoredFriendCode("short")).toBeNull();
+  });
+
+  it("accepts opaque child ids and rejects path-shaped ids", () => {
+    expect(isValidChildProfileId("primary")).toBe(true);
+    expect(isValidChildProfileId("child_a1b2c3")).toBe(true);
+    expect(isValidChildProfileId("../other")).toBe(false);
+  });
+
+  it("returns only safe fields from a stored child profile", () => {
+    expect(readSafeStoredChildProfile("child_one", {
+      displayName: "민즈",
+      schoolLevel: "elementary",
+      grade: 2,
+      characterId: "thunder-sword",
+      friendCode: "ABCD2345",
+      privateEmail: "hidden@example.com",
+    })).toEqual({
+      id: "child_one",
+      displayName: "민즈",
+      schoolLevel: "elementary",
+      grade: 2,
+      characterId: "thunder-sword",
+      friendCode: "ABCD2345",
+    });
   });
 });
