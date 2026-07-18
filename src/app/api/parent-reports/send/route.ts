@@ -18,7 +18,7 @@ export const runtime = "nodejs";
 const noStoreHeaders = { "Cache-Control": "no-store" };
 
 function readEmailConfiguration() {
-  const enabled = process.env.PARENT_REPORT_EMAIL_ENABLED === "true";
+  const enabled = process.env.PARENT_REPORT_EMAIL_ENABLED?.trim() === "true";
   const apiKey = process.env.RESEND_API_KEY?.trim() ?? "";
   const from = process.env.PARENT_REPORT_FROM_EMAIL?.trim() ?? "";
   if (!enabled || apiKey.length < 10 || from.length < 3 || from.length > 200 || /[\r\n]/.test(from)) return null;

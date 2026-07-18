@@ -21,17 +21,20 @@ export function getFirebaseAdminApp() {
   const hasInlineCredentials = Boolean(
     process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY,
   );
+  const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.trim().replace(/\\n/g, "\n");
   return getApps().length
     ? getApp()
     : initializeApp({
         credential: hasInlineCredentials
           ? cert({
-              projectId: process.env.FIREBASE_PROJECT_ID,
-              clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-              privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+              projectId,
+              clientEmail,
+              privateKey,
             })
           : applicationDefault(),
-        projectId: process.env.FIREBASE_PROJECT_ID,
+        projectId,
       });
 }
 
