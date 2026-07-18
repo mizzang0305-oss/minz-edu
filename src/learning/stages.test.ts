@@ -5,13 +5,13 @@ describe("learning stages", () => {
   it("validates each supported school level range", () => {
     expect(isValidLearningStage("kindergarten", 5)).toBe(true);
     expect(isValidLearningStage("elementary", 6)).toBe(true);
-    expect(isValidLearningStage("middle", 3)).toBe(false);
+    expect(isValidLearningStage("middle", 3)).toBe(true);
     expect(isValidLearningStage("middle", 4)).toBe(false);
   });
 
   it("migrates legacy grades to elementary", () => {
     expect(normalizeLearningStage(undefined, 4)).toEqual({ schoolLevel: "elementary", grade: 4 });
-    expect(normalizeLearningStage("middle", 3)).toEqual({ schoolLevel: "elementary", grade: 3 });
+    expect(normalizeLearningStage("middle", 3)).toEqual({ schoolLevel: "middle", grade: 3 });
   });
 
   it("uses different concepts and age-appropriate labels", () => {

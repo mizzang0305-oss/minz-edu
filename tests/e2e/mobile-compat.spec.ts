@@ -29,9 +29,12 @@ test("아이폰·갤럭시 화면과 터치 조작이 안전 영역 안에서 �
   await expectNoHorizontalOverflow(page);
   const touchTargets = await moveButtons.evaluateAll((buttons) => buttons.map((button) => {
     const rect = button.getBoundingClientRect();
-    return { width: rect.width, height: rect.height, touchAction: getComputedStyle(button).touchAction };
+    return { width: rect.width, height: rect.height, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, touchAction: getComputedStyle(button).touchAction };
   }));
   expect(touchTargets.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+  const viewport = page.viewportSize();
+  expect(viewport).not.toBeNull();
+  expect(touchTargets.every(({ left, top, right, bottom }) => left >= 0 && top >= 0 && right <= viewport!.width && bottom <= viewport!.height)).toBe(true);
   expect(touchTargets.every(({ touchAction }) => touchAction === "none")).toBe(true);
 
   await page.evaluate(() => {
@@ -49,7 +52,7 @@ test("아이폰·갤럭시 화면과 터치 조작이 안전 영역 안에서 �
 test("자녀 전환 기록을 유지하며 오프라인 앱 재실행 후 복구한다", async ({ page, context }) => {
   await page.goto("/");
   await page.evaluate(() => {
-    const makeData = (displayName: string, coins: number, schoolLevel: "kindergarten" | "elementary", grade: number) => ({
+    const makeData = (displayName: string, coins: number, schoolLevel: "kindergarten" | "elementary" | "middle", grade: number) => ({
       version: 5,
       playerProfile: { displayName, schoolLevel, grade },
       parentSettings: { playerName: displayName, schoolLevel, grade },
@@ -60,7 +63,7 @@ test("자녀 전환 기록을 유지하며 오프라인 앱 재실행 후 복구
     localStorage.setItem("minz-active-child-profile", "child_offline");
   });
   await page.goto("/inventory", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "오프라인테스트의 보물 가방" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "오프라인테스트의 장비·스킬 상점" })).toBeVisible();
   await page.goto("/world", { waitUntil: "domcontentloaded" });
   await expect(page.getByText("오프라인테스트", { exact: true }).first()).toBeVisible();
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
@@ -76,7 +79,7 @@ test("자녀 전환 기록을 유지하며 오프라인 앱 재실행 후 복구
 
     const primaryRestart = await context.newPage();
     await primaryRestart.goto("/inventory", { waitUntil: "domcontentloaded" });
-    await expect(primaryRestart.getByRole("heading", { name: "민표의 보물 가방" })).toBeVisible();
+    await expect(primaryRestart.getByRole("heading", { name: "민표의 장비·스킬 상점" })).toBeVisible();
     await expect(primaryRestart.getByText("70", { exact: true })).toBeVisible();
     await primaryRestart.close();
   } finally {

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ParentSettings } from "@/types/progress";
@@ -7,6 +8,7 @@ import type { SchoolLevel } from "@/types/learning";
 import { SCHOOL_LEVEL_GRADES, SCHOOL_LEVEL_LABELS } from "@/learning/stages";
 import { getWeeklyLearningGoals } from "@/learning/curriculumCatalog";
 import { DEFAULT_SETTINGS, readGameData, saveSettings } from "@/stores/storage";
+import { CHARACTERS } from "@/types/loadout";
 
 const roles = [
   ["attack", "번개 검사"],
@@ -74,7 +76,8 @@ export function SetupForm() {
           <label>현재 수준<select value={settings.level} onChange={(event) => update("level", event.target.value as ParentSettings["level"])}><option value="foundation">기초 다지기</option><option value="grade">학년 흐름</option><option value="advanced">깊이 탐험</option></select></label>
           <label>하루 모험 시간<select value={settings.playMinutes} onChange={(event) => update("playMinutes", Number(event.target.value) as 5 | 10 | 15)}><option value={5}>가볍게 탐험 · 5분</option><option value={10}>기본 모험 · 10분</option><option value={15}>보스 도전 · 15분</option></select></label>
         </div>
-        <p className="save-note">저장 후 수학 8주차·국어 9주차 추천 경로에서 시작 목표를 고를 수 있습니다.</p>
+        <p className="save-note">저장 후 수학 8주차·국어 9주차·영어 10주차 추천 경로에서 시작 목표를 고를 수 있습니다.</p>
+        <fieldset className="character-picker"><legend>게임 캐릭터 선택</legend><div className="character-choice-grid">{CHARACTERS.map((character) => <label key={character.id} className={settings.characterId === character.id ? "character-choice selected" : "character-choice"}><input type="radio" name="character" value={character.id} checked={settings.characterId === character.id} onChange={() => setSettings((current) => ({ ...current, characterId: character.id, selectedSkillId: character.defaultSkillId, role: character.id === "flame-mage" ? "magic" : "attack" }))} /><Image src={character.asset} alt={`${character.name} ${character.job}`} width={420} height={304} /><strong>{character.name}</strong><span>{character.job}</span></label>)}</div></fieldset>
         <fieldset className="role-picker"><legend>주인공 직업</legend>{roles.map(([value, label]) => <label key={value} className={settings.role === value ? "role-option selected" : "role-option"}><input type="radio" name="role" value={value} checked={settings.role === value} onChange={() => update("role", value)} /><span>{label}</span></label>)}</fieldset>
       </section>
 

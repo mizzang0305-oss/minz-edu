@@ -2,6 +2,7 @@ import { deleteApp, initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
+  applyOnlineBattleCommand,
   createOnlineRoom,
   getOnlineRoom,
   heartbeatOnlineRoom,
@@ -115,6 +116,84 @@ describe("online room server authority", () => {
     expect(friendReconnect.players.map((player) => player.connected)).toEqual([true, true]);
   });
 
+  it("synchronizes ready, turn answers, hints, and idempotent commands through server revisions", async () => {
+    const created = await createOnlineRoom(firestore, "guardian-a", "primary", 1_000);
+    const joined = await joinOnlineRoom(firestore, "guardian-b", "primary", created.roomCode, 2_000);
+
+    const hostReady = await applyOnlineBattleCommand(firestore, "guardian-a", created.id, {
+      eventId: "ready-host",
+      expectedRevision: joined.revision,
+      type: "PLAYER_READY",
+    }, 3_000);
+    expect(hostReady.status).toBe("ready");
+
+    const started = await applyOnlineBattleCommand(firestore, "guardian-b", created.id, {
+      eventId: "ready-friend",
+      expectedRevision: hostReady.revision,
+      type: "PLAYER_READY",
+    }, 4_000);
+    expect(started).toMatchObject({ status: "battle", activePlayerSlot: 1, bossHp: 150, teamLinkGauge: 0 });
+    expect(started.currentQuestion).toMatchObject({ id: "elementary-place-1" });
+    expect(started.currentQuestion).not.toHaveProperty("answer");
+
+    const hostAnswer = await applyOnlineBattleCommand(firestore, "guardian-a", created.id, {
+      eventId: "answer-host-1",
+      expectedRevision: started.revision,
+      type: "ANSWER_SUBMIT",
+      choice: "50",
+    }, 5_000);
+    expect(hostAnswer).toMatchObject({ activePlayerSlot: 2, bossHp: 125, teamLinkGauge: 25 });
+    expect(hostAnswer.players[0].correctAnswers).toBe(1);
+    const storedAnswerCommand = await firestore
+      .collection("rooms")
+      .doc(created.id)
+      .collection("commands")
+      .doc("answer-host-1")
+      .get();
+    expect(storedAnswerCommand.data()).toMatchObject({ type: "ANSWER_SUBMIT", payload: {} });
+    expect(storedAnswerCommand.data()).not.toHaveProperty("payload.choice");
+
+    const hint = await applyOnlineBattleCommand(firestore, "guardian-a", created.id, {
+      eventId: "hint-host-1",
+      expectedRevision: hostAnswer.revision,
+      type: "HINT_SEND",
+    }, 6_000);
+    expect(hint.teamLinkGauge).toBe(30);
+    expect(hint.players[0].hintsSent).toBe(1);
+
+    const duplicate = await applyOnlineBattleCommand(firestore, "guardian-a", created.id, {
+      eventId: "hint-host-1",
+      expectedRevision: hostAnswer.revision,
+      type: "HINT_SEND",
+    }, 6_500);
+    expect(duplicate.revision).toBe(hint.revision);
+    expect(duplicate.players[0].hintsSent).toBe(1);
+
+    await expect(applyOnlineBattleCommand(firestore, "guardian-a", created.id, {
+      eventId: "out-of-turn",
+      expectedRevision: hint.revision,
+      type: "ANSWER_SUBMIT",
+      choice: "45",
+    }, 7_000)).rejects.toMatchObject({ code: "NOT_YOUR_TURN" });
+  });
+
+  it("requires both players for the synchronized team special", async () => {
+    const created = await createOnlineRoom(firestore, "guardian-a", "primary", 1_000);
+    const joined = await joinOnlineRoom(firestore, "guardian-b", "primary", created.roomCode, 2_000);
+    const hostReady = await applyOnlineBattleCommand(firestore, "guardian-a", created.id, { eventId: "r1", expectedRevision: joined.revision, type: "PLAYER_READY" }, 3_000);
+    let state = await applyOnlineBattleCommand(firestore, "guardian-b", created.id, { eventId: "r2", expectedRevision: hostReady.revision, type: "PLAYER_READY" }, 4_000);
+    state = await applyOnlineBattleCommand(firestore, "guardian-a", created.id, { eventId: "a1", expectedRevision: state.revision, type: "ANSWER_SUBMIT", choice: "50" }, 5_000);
+    state = await applyOnlineBattleCommand(firestore, "guardian-b", created.id, { eventId: "a2", expectedRevision: state.revision, type: "ANSWER_SUBMIT", choice: "45" }, 6_000);
+    state = await applyOnlineBattleCommand(firestore, "guardian-a", created.id, { eventId: "a3", expectedRevision: state.revision, type: "ANSWER_SUBMIT", choice: "2/4" }, 7_000);
+    expect(state.teamLinkGauge).toBe(75);
+
+    state = await applyOnlineBattleCommand(firestore, "guardian-a", created.id, { eventId: "s1", expectedRevision: state.revision, type: "SPECIAL_READY" }, 8_000);
+    expect(state.players[0].specialReady).toBe(true);
+    const special = await applyOnlineBattleCommand(firestore, "guardian-b", created.id, { eventId: "s2", expectedRevision: state.revision, type: "SPECIAL_READY" }, 9_000);
+    expect(special).toMatchObject({ status: "battle", bossHp: 25, teamLinkGauge: 0 });
+    expect(special.players.every((player) => !player.specialReady)).toBe(true);
+  });
+
   it("rejects presence heartbeats from non-members", async () => {
     const created = await createOnlineRoom(firestore, "guardian-a", "primary");
     await expect(
@@ -143,7 +222,7 @@ describe("online room server authority", () => {
       .doc("guardian-a")
       .collection("children")
       .doc("primary")
-      .update({ characterId: "thunder-sword", schoolLevel: "middle", grade: 2 });
+      .update({ characterId: "thunder-sword", schoolLevel: "middle", grade: 4 });
     await expect(
       createOnlineRoom(firestore, "guardian-a", "primary"),
     ).rejects.toMatchObject({ code: "CHILD_NOT_FOUND" });

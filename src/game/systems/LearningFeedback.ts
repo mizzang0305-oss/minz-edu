@@ -12,7 +12,7 @@ export function buildCorrectFeedback(question: PracticeQuestion, recovered = fal
     kind: "correct",
     eyebrow: recovered ? "다시 찾아낸 회피" : "회피 성공 · 반격",
     title: `${question.answer}, 회피 성공!`,
-    explanation: `${question.hint} 그래서 답은 ${question.answer}이고, 공격을 피한 뒤 반격할 수 있어.`,
+    explanation: `${question.explanation ?? question.hint} 그래서 답은 ${question.answer}이고, 공격을 피한 뒤 반격할 수 있어.`,
   };
 }
 

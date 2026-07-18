@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InstallGameButton } from "./InstallGameButton";
 
 export function AppHeader() {
   return (
@@ -16,6 +17,7 @@ export function AppHeader() {
         <Link href="/parent"><span className="nav-label">보호자</span><span className="nav-short">보호자</span></Link>
         <Link href="/children" className="account-link"><span className="nav-label">모험가 선택</span><span className="nav-short">영웅</span></Link>
       </nav>
+      <InstallGameButton />
     </header>
   );
 }

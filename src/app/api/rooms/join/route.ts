@@ -19,6 +19,10 @@ const errorStatus: Record<RoomServiceError["code"], number> = {
   ROOM_CLOSED: 409,
   NOT_MEMBER: 403,
   CODE_COLLISION: 503,
+  REVISION_CONFLICT: 409,
+  INVALID_ACTION: 409,
+  NOT_YOUR_TURN: 409,
+  BATTLE_NOT_READY: 409,
 };
 
 export async function POST(request: Request) {
@@ -62,6 +66,10 @@ export async function POST(request: Request) {
         ROOM_CLOSED: "이미 모험이 시작된 방입니다.",
         NOT_MEMBER: "이 방을 볼 권한이 없습니다.",
         CODE_COLLISION: "잠시 후 다시 시도해 주세요.",
+        REVISION_CONFLICT: "친구 방 상태가 바뀌었습니다. 다시 시도해 주세요.",
+        INVALID_ACTION: "지금은 이 행동을 할 수 없습니다.",
+        NOT_YOUR_TURN: "친구의 차례가 끝날 때까지 기다려 주세요.",
+        BATTLE_NOT_READY: "두 용사가 준비된 뒤 시작할 수 있습니다.",
       };
       return Response.json({ error: messages[error.code] }, { status: errorStatus[error.code], headers: noStoreHeaders });
     }

@@ -7,7 +7,7 @@ import { doc, onSnapshot, type Timestamp } from "firebase/firestore";
 import { bootstrapOnlineFirebaseAuth } from "@/lib/firebase/client";
 import { getOnlineFirestore } from "@/lib/firebase/firestore";
 import { normalizeRoomCode } from "@/services/online/roomCode";
-import type { PublicRoom } from "@/services/online/serverRoom";
+import type { OnlineBattleCommandType, PublicRoom } from "@/services/online/serverRoom";
 import { getActiveChildProfileId } from "@/stores/storage";
 
 type Props = {
@@ -22,9 +22,18 @@ type FirestoreRoomSnapshot = {
     characterId: string;
     ready: boolean;
     connected: boolean;
+    specialReady?: boolean;
+    correctAnswers?: number;
+    hintsSent?: number;
   }>;
   bossHp: number;
   teamLinkGauge: number;
+  activePlayerIndex?: number;
+  questionId?: string;
+  questionPrompt?: string;
+  questionChoices?: string[];
+  questionHint?: string;
+  lastActionMessage?: string;
   revision: number;
   expiresAt: Timestamp;
 };
@@ -38,7 +47,7 @@ async function getCsrfToken() {
   return ((await response.json()) as { csrfToken: string }).csrfToken;
 }
 
-function fromFirestore(id: string, value: FirestoreRoomSnapshot): PublicRoom {
+function fromFirestore(id: string, value: FirestoreRoomSnapshot, viewerSlot: number): PublicRoom {
   return {
     id,
     roomCode: value.roomCode,
@@ -49,9 +58,18 @@ function fromFirestore(id: string, value: FirestoreRoomSnapshot): PublicRoom {
       characterId: player.characterId,
       ready: player.ready,
       connected: player.connected,
+      specialReady: player.specialReady ?? false,
+      correctAnswers: player.correctAnswers ?? 0,
+      hintsSent: player.hintsSent ?? 0,
     })),
     bossHp: value.bossHp,
     teamLinkGauge: value.teamLinkGauge,
+    activePlayerSlot: (value.activePlayerIndex ?? 0) + 1,
+    currentQuestion: value.status === "battle" && value.questionId && value.questionPrompt && Array.isArray(value.questionChoices)
+      ? { id: value.questionId, prompt: value.questionPrompt, choices: value.questionChoices, hint: value.questionHint ?? "친구와 풀이 단서를 나눠 보세요." }
+      : null,
+    lastActionMessage: value.lastActionMessage ?? "친구 방 상태를 동기화하고 있어요.",
+    viewerSlot,
     revision: value.revision,
     expiresAt: value.expiresAt.toMillis(),
   };
@@ -74,6 +92,7 @@ export function OnlineRoomClient({ accountConnected }: Props) {
   const [roomCode, setRoomCode] = useState("");
   const [room, setRoom] = useState<PublicRoom | null>(null);
   const [busy, setBusy] = useState<"create" | "join" | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [realtimeState, setRealtimeState] = useState<"idle" | "connecting" | "connected" | "reconnecting" | "error">("idle");
 
@@ -96,7 +115,7 @@ export function OnlineRoomClient({ accountConnected }: Props) {
               return;
             }
             try {
-              const nextRoom = fromFirestore(snapshot.id, snapshot.data() as FirestoreRoomSnapshot);
+              const nextRoom = fromFirestore(snapshot.id, snapshot.data() as FirestoreRoomSnapshot, room.viewerSlot);
               if (nextRoom.expiresAt <= Date.now()) {
                 setMessage("친구 방의 30분 이용 시간이 끝났어요. 새 방을 만들어 주세요.");
                 setRealtimeState("error");
@@ -122,7 +141,7 @@ export function OnlineRoomClient({ accountConnected }: Props) {
       active = false;
       unsubscribe?.();
     };
-  }, [room?.id]);
+  }, [room?.id, room?.viewerSlot]);
 
   useEffect(() => {
     if (!room?.id) return;
@@ -216,23 +235,54 @@ export function OnlineRoomClient({ accountConnected }: Props) {
     }
   }
 
+  async function sendBattleAction(type: OnlineBattleCommandType, choice?: string) {
+    if (!room || actionBusy) return;
+    setActionBusy(true);
+    setMessage("");
+    try {
+      const csrfToken = await getCsrfToken();
+      const response = await fetch(`/api/rooms/${room.id}/battle`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          csrfToken,
+          eventId: crypto.randomUUID(),
+          expectedRevision: room.revision,
+          type,
+          ...(choice ? { choice } : {}),
+        }),
+      });
+      const result = (await response.json()) as { room?: PublicRoom; error?: string };
+      if (!response.ok || !result.room) throw new Error(result.error ?? "팀전 행동을 동기화하지 못했습니다.");
+      setRoom(result.room);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "팀전 행동을 동기화하지 못했습니다.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   if (!accountConnected) {
     return (
       <main className="room-page">
-        <span className="eyebrow">온라인 협동 · Phase 11-C</span>
+        <span className="eyebrow">온라인 파티 연결 · 보호자 승인 필요</span>
         <h1>보호자 계정 연결 후 친구 방을 열 수 있어요</h1>
-        <p>두 기기 모두 보호자 Google 계정으로 연결한 뒤, 한쪽에서 만든 6자리 참가 코드를 다른 기기에 입력합니다.</p>
+        <p>보호자 계정으로 방을 만든 뒤 두 기기에서 준비하면 턴 기반 실시간 팀전을 시작할 수 있습니다.</p>
         <div className="room-actions">
           <Link href="/login" className="primary-button">보호자 Google 로그인</Link>
-          <Link href="/setup" className="secondary-button">로컬 협동 계속하기</Link>
+          <Link href="/setup" className="secondary-button">같은 화면 팀전 설정</Link>
         </div>
       </main>
     );
   }
 
+  const viewerPlayer = room?.players.find((player) => player.slot === room.viewerSlot);
+  const isMyTurn = room?.status === "battle" && room.activePlayerSlot === room.viewerSlot;
+
   return (
     <main className="room-page game-room-page">
-      <section className="room-hero"><div><span className="eyebrow">ONLINE PARTY LOBBY</span><h1>친구와 파티를<br />만들어 모험을 시작해요</h1><p>한 명은 방을 만들고, 다른 친구는 6자리 코드를 입력하면 바로 같은 파티에 모입니다.</p></div><div className="room-hero-party" aria-hidden="true"><Image src="/game-assets/duelyst/hero-thunder.webp" alt="" width="420" height="304" /><Image src="/game-assets/duelyst/hero-magic.webp" alt="" width="420" height="304" /></div></section>
+      <section className="room-hero"><div><span className="eyebrow">ONLINE REALTIME TEAM BATTLE</span><h1>친구와 파티를<br />만들어 모험을 시작해요</h1><p>6자리 코드로 모인 뒤, 문제 차례와 팀 게이지가 두 기기에 같은 revision으로 동기화됩니다.</p></div><div className="room-hero-party" aria-hidden="true"><Image src="/game-assets/duelyst/hero-thunder.webp" alt="" width="420" height="304" /><Image src="/game-assets/duelyst/hero-magic.webp" alt="" width="420" height="304" /></div></section>
 
       {!room ? (
         <section className="online-room-controls">
@@ -296,7 +346,9 @@ export function OnlineRoomClient({ accountConnected }: Props) {
               <article key={`${player.slot}-${player.displayName}`}>
                 <span>{player.slot}P</span>
                 <strong>{player.displayName}</strong>
-                <small>{player.connected ? "기기 연결됨" : "재접속 기다리는 중"}</small>
+                <small>{player.connected ? `기기 연결됨 · 성공 ${player.correctAnswers} · 도움 ${player.hintsSent}` : "재접속 기다리는 중"}</small>
+                {room.status !== "battle" && <em>{player.ready ? "준비 완료" : "준비 대기"}</em>}
+                {room.status === "battle" && player.specialReady && <em>필살기 준비 완료</em>}
               </article>
             ))}
             {room.players.length < 2 && (
@@ -307,7 +359,49 @@ export function OnlineRoomClient({ accountConnected }: Props) {
               </article>
             )}
           </div>
-          <p className="lobby-note">두 보호자가 확인된 뒤에만 전투 시작 버튼이 열립니다. 현재 단계에서는 방 입장과 실시간 동기화까지만 작동합니다.</p>
+          {room.status === "battle" && room.currentQuestion ? (
+            <section className="online-team-battle" aria-label="실시간 온라인 팀전">
+              <div className="online-battle-gauges">
+                <div><span>보스 HP</span><progress max="150" value={room.bossHp} /><strong>{room.bossHp} / 150</strong></div>
+                <div><span>팀 링크</span><progress max="100" value={room.teamLinkGauge} /><strong>{room.teamLinkGauge} / 100</strong></div>
+              </div>
+              <div className="online-turn-card">
+                <span>{isMyTurn ? "내 공격 차례" : `${room.activePlayerSlot}P 공격 차례`}</span>
+                <h2>{room.currentQuestion.prompt}</h2>
+                {isMyTurn ? (
+                  <div className="online-answer-grid">
+                    {room.currentQuestion.choices.map((choice) => (
+                      <button key={choice} type="button" disabled={actionBusy} onClick={() => sendBattleAction("ANSWER_SUBMIT", choice)}>{choice}</button>
+                    ))}
+                  </div>
+                ) : (
+                  <button type="button" className="secondary-button" disabled={actionBusy} onClick={() => sendBattleAction("HINT_SEND")}>풀이 단서 보내기</button>
+                )}
+              </div>
+              {room.teamLinkGauge >= 75 && (
+                <div className="online-special-card">
+                  <strong>팀 필살기 충전 완료</strong>
+                  <p>두 기기에서 준비를 누르면 서버가 동시에 확인한 뒤 보스에게 큰 피해를 줍니다.</p>
+                  <button type="button" className="primary-button" disabled={actionBusy || viewerPlayer?.specialReady} onClick={() => sendBattleAction("SPECIAL_READY")}>{viewerPlayer?.specialReady ? "친구 준비 기다리는 중" : "팀 필살기 준비"}</button>
+                </div>
+              )}
+              <p className="online-action-log" role="status">{room.lastActionMessage}</p>
+            </section>
+          ) : room.status === "reward" ? (
+            <section className="online-battle-result">
+              <span>TEAM BATTLE COMPLETE</span>
+              <h2>두 기기의 전투 상태가 끝까지 동기화됐어요!</h2>
+              <p>{room.lastActionMessage}</p>
+              <button type="button" className="primary-button" disabled={actionBusy || viewerPlayer?.ready} onClick={() => sendBattleAction("PLAYER_READY")}>{viewerPlayer?.ready ? "친구 재도전 준비 대기" : "다시 도전 준비"}</button>
+            </section>
+          ) : (
+            <section className="online-ready-card">
+              <h2>{room.players.length < 2 ? "친구가 들어오는 동안 먼저 준비할 수 있어요" : "두 용사가 준비하면 팀전이 자동 시작돼요"}</h2>
+              <p>{room.lastActionMessage}</p>
+              <button type="button" className="primary-button" disabled={actionBusy || viewerPlayer?.ready} onClick={() => sendBattleAction("PLAYER_READY")}>{viewerPlayer?.ready ? "준비 완료 · 친구 대기" : "온라인 팀전 준비"}</button>
+            </section>
+          )}
+          <div className="room-actions"><Link href="/setup" className="secondary-button">같은 화면 팀전으로 전환</Link></div>
         </section>
       )}
 

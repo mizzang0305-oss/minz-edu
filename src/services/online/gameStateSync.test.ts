@@ -36,6 +36,7 @@ function gameWith(records: AdventureRecord[]) {
   data.playHistory = records;
   data.rewardHistory = records;
   data.inventory = {
+    ...data.inventory,
     coins: 100 + records.reduce((sum, item) => sum + item.coins, 0),
     badges: ["이전 배지", ...records.flatMap((item) => item.badges)],
   };
@@ -108,6 +109,34 @@ describe("guardian game state sync boundary", () => {
 
     expect(snapshot.learningGoalProgress["elementary-5-s2-math-w8"].questionCount).toBe(5);
     expect(parseGameSyncSnapshot(snapshot)).not.toBeNull();
+  });
+
+  it("syncs only known aggregate misconception tags without selected answers", () => {
+    const data = createDefaultGameData();
+    data.trainingHistory.push({
+      id: "training-middle-1",
+      goalId: "middle-1-s2-math-w8",
+      mode: "practice",
+      completedAt: "2026-07-18T01:00:00.000Z",
+      questionCount: 6,
+      firstTryCorrect: 4,
+      retryCount: 2,
+      hintCount: 1,
+      passed: true,
+      durationSeconds: 180,
+      misconceptionTagCounts: { "m1-number-sign": 2 },
+    });
+
+    const snapshot = createGameSyncSnapshot(data);
+    expect(snapshot.trainingAttempts[0]).toMatchObject({
+      durationSeconds: 180,
+      misconceptionTagCounts: { "m1-number-sign": 2 },
+    });
+    expect(parseGameSyncSnapshot(snapshot)).not.toBeNull();
+    expect(parseGameSyncSnapshot({
+      ...snapshot,
+      trainingAttempts: [{ ...snapshot.trainingAttempts[0], misconceptionTagCounts: { "selected-answer--4": 1 } }],
+    })).toBeNull();
   });
 
   it("returns privacy-safe reason codes without echoing rejected values", () => {

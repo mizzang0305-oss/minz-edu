@@ -8,6 +8,8 @@ tags: [firebase, firestore, migration, child-profile, read-only]
 
 # Firebase 중등 프로필 읽기 전용 감사와 마이그레이션 계획
 
+> 이 문서는 2026-07-13 당시 중등 프로필을 허용하기 전의 읽기 전용 감사 기록이다. 2026-07-18부터 제품과 Firestore 규칙은 중1~중3 프로필을 지원하며, 현재 콘텐츠 검수 상태는 [CURRICULUM_ALIGNMENT.md](./CURRICULUM_ALIGNMENT.md)와 [MIDDLE_QUESTION_REVIEW_WORKFLOW.md](./MIDDLE_QUESTION_REVIEW_WORKFLOW.md)를 기준으로 한다.
+
 ## 결론
 
 `studymate-ai-v2`의 `(default)` Firestore 데이터베이스를 읽기 전용으로 확인한 결과, `children` collection group에 `schoolLevel == "middle"`인 프로필은 **0개**다. 현재 실제 변환 대상이 없으므로 데이터 마이그레이션은 실행하지 않는다.

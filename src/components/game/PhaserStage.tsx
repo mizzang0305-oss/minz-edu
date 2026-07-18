@@ -7,6 +7,7 @@ import { gameEventBridge } from "@/game/bridge/gameEventBridge";
 import type { ExplorationInteraction } from "@/game/bridge/gameEventBridge";
 import type { BossAttackSignal, CoopBattleState } from "@/types/battle";
 import type { ExplorationStageId } from "@/types/exploration";
+import type { CharacterId } from "@/types/loadout";
 
 type PhaserStageProps = {
   battle: CoopBattleState;
@@ -16,25 +17,26 @@ type PhaserStageProps = {
   onSpecialComplete: () => void;
   onExploreComplete: () => void;
   stageId: ExplorationStageId;
+  characterId?: CharacterId;
 };
 
 type Direction = "left" | "right" | "up" | "down";
 
-export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, specialSignal, onSpecialComplete, onExploreComplete, stageId }: PhaserStageProps) {
+export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, specialSignal, onSpecialComplete, onExploreComplete, stageId, characterId }: PhaserStageProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const battleRef = useRef(battle);
   const specialCallbackRef = useRef(onSpecialComplete);
   const exploreCallbackRef = useRef(onExploreComplete);
   const activePointersRef = useRef(new Map<number, Direction>());
-  const [progress, setProgress] = useState({ collected: 0, total: 3, bridgeCrossed: false, secretDiscovered: false, npcTalked: false, chestOpened: false, nextDirection: "오른쪽" as "왼쪽" | "오른쪽" | "위쪽" | "아래쪽" | "도착" });
+  const [progress, setProgress] = useState({ collected: 0, total: 3, bridgeCrossed: false, secretDiscovered: false, npcTalked: false, chestOpened: false, nextDirection: "오른쪽" as "왼쪽" | "오른쪽" | "위쪽" | "아래쪽" | "도착", zonePage: 1 as 1 | 2, fieldEnemiesDefeated: 0, fieldEnemiesTotal: 2 });
   const [interaction, setInteraction] = useState<ExplorationInteraction | null>(null);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const primaryPlayer = battle.players[0];
   const learningStageLabel = primaryPlayer.schoolLevel === "kindergarten"
     ? `유아 ${primaryPlayer.grade}세`
-    : `초등 ${primaryPlayer.grade}학년`;
+    : `${primaryPlayer.schoolLevel === "middle" ? "중등" : "초등"} ${primaryPlayer.grade}학년`;
 
   function move(direction: Direction, active: boolean) {
     gameEventBridge.emit("move", { direction, active });
@@ -132,7 +134,7 @@ export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, spe
 
     void import("@/game/PhaserGame").then(({ createPhaserGame }) => {
       if (!active || !parentRef.current) return;
-      gameRef.current = createPhaserGame(parentRef.current, stageId);
+      gameRef.current = createPhaserGame(parentRef.current, stageId, characterId);
       if (document.visibilityState === "hidden") gameRef.current.loop.sleep();
       refreshScale();
     }).catch(() => {
@@ -159,7 +161,7 @@ export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, spe
       gameRef.current = null;
       game?.destroy(true);
     };
-  }, [stageId]);
+  }, [characterId, stageId]);
 
   useEffect(() => {
     if (ready) gameEventBridge.emit("sync", battle);
@@ -194,16 +196,18 @@ export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, spe
         {battle.battlePhase === "INTRO" && (
           <>
             <div className="rpg-quest-overlay" aria-live="polite">
-              <span>{learningStageLabel} · 목표 {progress.nextDirection}</span>
+              <span>PAGE {progress.zonePage} / 2 · {learningStageLabel} · 목표 {progress.nextDirection}</span>
               <strong>{!progress.npcTalked ? "길잡이와 대화하기" : !progress.chestOpened ? "보물 상자 열기" : `수집물 ${progress.collected}/${progress.total}`}</strong>
-              <small>{progress.secretDiscovered ? "숨은 길 발견 완료" : "캐릭터 주변의 빛나는 버튼을 눌러요"}</small>
+              <small>필드 적 {progress.fieldEnemiesDefeated}/{progress.fieldEnemiesTotal} · {progress.secretDiscovered ? "숨은 길 발견 완료" : "캐릭터 주변의 빛나는 버튼을 눌러요"}</small>
             </div>
             {interaction && (
               <button
                 type="button"
                 className={`rpg-world-object-prompt is-${interaction.kind}`}
                 style={{ left: `${interaction.xPercent}%`, top: `${interaction.yPercent}%` }}
-                onClick={() => gameEventBridge.emit("interact", { npcId: interaction.npcId })}
+                onClick={() => interaction.kind === "enemy"
+                  ? gameEventBridge.emit("fieldAttack", { enemyId: interaction.npcId })
+                  : gameEventBridge.emit("interact", { npcId: interaction.npcId })}
               >
                 <span className="rpg-prompt-key" aria-hidden="true">E</span>
                 <span><strong>{interaction.label}</strong><small>{interaction.hint}</small></span>

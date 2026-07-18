@@ -3,15 +3,17 @@ import type { LearningBattleProfile, LearningStage, SchoolLevel } from "@/types/
 export const SCHOOL_LEVEL_LABELS: Record<SchoolLevel, string> = {
   kindergarten: "유아",
   elementary: "초등",
+  middle: "중등",
 };
 
 export const SCHOOL_LEVEL_GRADES: Record<SchoolLevel, number[]> = {
   kindergarten: [5, 6, 7],
   elementary: [1, 2, 3, 4, 5, 6],
+  middle: [1, 2, 3],
 };
 
 export function isSchoolLevel(value: unknown): value is SchoolLevel {
-  return value === "kindergarten" || value === "elementary";
+  return value === "kindergarten" || value === "elementary" || value === "middle";
 }
 
 export function isValidLearningStage(schoolLevel: unknown, grade: unknown): schoolLevel is SchoolLevel {
@@ -41,6 +43,22 @@ export function getLearningBattleProfile(stage: LearningStage): LearningBattlePr
       answer: { title: "반짝 씨앗 암호", prompt: older ? "사과 3개와 2개를 모으면 몇 개일까?" : "별 2개와 1개를 모으면 몇 개일까?", choices: older ? ["4", "5", "6"] : ["2", "3", "4"], answer: older ? "5" : "3", copy: "손가락으로 하나씩 세어도 좋아요." },
       deep: { prompt: older ? "같은 5가 되는 두 길은?" : "같은 3이 되는 두 길은?", copy: "순서가 달라도 같은 수가 되는지 찾아보세요.", choices: older ? ["3 + 2 / 4 + 1", "3 + 1 / 2 + 2", "5 + 1 / 4 + 2"] : ["2 + 1 / 1 + 2", "2 + 2 / 1 + 1", "3 + 1 / 2 + 2"], answer: older ? "3 + 2 / 4 + 1" : "2 + 1 / 1 + 2" },
       hint: older ? "3에서 5까지 손가락을 두 번 더 펴 보자." : "2 다음 수를 하나 말해 보자.",
+    };
+  }
+
+  if (stage.schoolLevel === "middle") {
+    const concept = stage.grade === 1
+      ? { id: "linear-equation", name: "일차방정식", boss: "미지수 골렘", prompt: "3x + 2 = 14일 때 x는?", choices: ["3", "4", "5"], answer: "4", hint: "양변에서 2를 빼고, 남은 12를 3으로 나누세요." }
+      : stage.grade === 2
+        ? { id: "linear-function", name: "일차함수", boss: "좌표 그림자", prompt: "y = 2x + 1에서 x = 3일 때 y는?", choices: ["6", "7", "8"], answer: "7", hint: "x 자리에 3을 넣어 2 × 3 + 1을 계산하세요." }
+        : { id: "quadratic-equation", name: "이차방정식", boss: "포물선 용", prompt: "x² - 5x + 6 = 0의 해는?", choices: ["1, 6", "2, 3", "-2, -3"], answer: "2, 3", hint: "곱이 6이고 합이 5인 두 수를 찾아 (x-2)(x-3)으로 인수분해하세요." };
+    return {
+      stageLabel: formatLearningStage(stage), conceptId: concept.id, conceptName: concept.name, bossName: concept.boss,
+      battleTitle: `${concept.name}의 힘으로 ${concept.boss}을 공략하라`, introTitle: `${concept.boss}이 길을 막았어!`, introCopy: "문제의 조건을 식과 그래프로 연결해 약점을 찾아보자.",
+      opening: { kind: "choice", title: `${concept.name} 첫 결계`, prompt: concept.prompt, choices: concept.choices, answer: concept.answer, copy: concept.hint },
+      answer: { title: `${concept.name} 연결 결계`, prompt: concept.prompt, choices: concept.choices, answer: concept.answer, copy: concept.hint },
+      deep: { prompt: `${concept.name}의 풀이 근거를 고르세요.`, copy: concept.hint, choices: concept.choices, answer: concept.answer },
+      hint: concept.hint,
     };
   }
 

@@ -23,7 +23,7 @@
 
 - Authentication: 보호자 Google 로그인
 - Cloud Firestore: 보호자/자녀 프로필, 승인 친구, 방 스냅샷, 전투 결과
-- Cloud Functions: 서버 권한 전투 명령 검증 및 결과 확정
+- Next.js Route Handler + Firebase Admin SDK: 서버 권한 전투 명령 검증 및 결과 확정
 - App Check: 승인되지 않은 클라이언트의 Firebase 요청 완화
 
 전투는 턴 기반이므로 최초 온라인 MVP는 Firestore 실시간 구독으로 충분하다. 향후 액션성이 커져 지연 요구가 낮아지면 전용 WebSocket 게임 서버를 별도 검토한다.
@@ -44,7 +44,7 @@ rooms/{roomId}
   results/final
 ```
 
-`rooms/*/commands`에는 클라이언트의 의도만 기록한다. `bossHp`, `teamLinkGauge`, `reward`, `winner`, `revision`은 Cloud Functions/Admin SDK만 쓴다. 모든 명령은 `eventId` 중복 방지, `expectedRevision` 낙관적 잠금, 참가자 권한, 현재 차례, 입력 스키마를 확인한다.
+클라이언트는 인증·CSRF 검사를 거쳐 Route Handler에 명령을 보낸다. `rooms/*/commands`와 `bossHp`, `teamLinkGauge`, `reward`, `winner`, `revision`은 Admin SDK만 쓰며 Firestore 클라이언트 직접 쓰기는 규칙에서 거부한다. 모든 명령은 `eventId` 중복 방지, `expectedRevision` 낙관적 잠금, 참가자 권한, 현재 차례, 입력 스키마를 확인한다. 명령 로그에는 선택한 답을 저장하지 않고 멱등성 메타데이터만 남긴다.
 
 ## 모바일 기준
 
@@ -61,7 +61,7 @@ rooms/{roomId}
 
 1. **Phase 11-A (완료)**: 모바일 viewport/safe-area/PWA manifest, Google 보호자 로그인 세션 기반, 온라인 타입과 방 코드 검증
 2. **Phase 11-B (부분 완료)**: Firebase 개발 프로젝트, Emulator Suite, Firestore 규칙, 로컬 기본 자녀 프로필의 보호자 계정 동기화 완료. 다중 자녀 CRUD 대기
-3. **Phase 11-C (진행 중)**: 서버 권한 방 생성, 6자리 코드 참가, 2인 제한, 30분 만료, Firestore 실시간 로비, 20초 presence heartbeat와 60초 재접속 보호 완료. 서버 권한 턴 전투 대기
+3. **Phase 11-C (완료)**: 서버 권한 방 생성, 6자리 코드 참가, 2인 제한, 30분 만료, Firestore 실시간 로비, 20초 presence heartbeat와 60초 재접속 보호, revision 기반 준비·턴 교대·정답·도움·팀 필살기·보상 동기화
 4. **Phase 11-D**: 실제 휴대폰 2대/태블릿 조합 테스트, App Check 모니터링 후 적용
 
 ## 운영 승인 필요 항목

@@ -1,12 +1,16 @@
-import type { AdventureRecord, CoopObservationRecord, ParentSettings, StageProgress, StoredGameData } from "@/types/progress";
+import type { AdventureRecord, CoopObservationRecord, LearningSessionReport, ParentSettings, StageProgress, StoredGameData } from "@/types/progress";
 import { normalizeLearningStage } from "@/learning/stages";
 import { getWeeklyLearningGoals } from "@/learning/curriculumCatalog";
 import type { TrainingAttemptRecord } from "@/types/curriculum";
 import { GAME_DATA_CHANGED_EVENT } from "@/services/online/gameStateSync";
+import { SHOP_ITEMS, getCharacter, getSkill } from "@/types/loadout";
+import type { EquipmentId, SkillId } from "@/types/loadout";
 
 export const STORAGE_KEY = "minz-learning-game";
 export const ACTIVE_CHILD_PROFILE_KEY = "minz-active-child-profile";
 export const ACTIVE_CHILD_CHANGED_EVENT = "minz:active-child-changed";
+export const SESSION_REPORT_READY_EVENT = "minz:session-report-ready";
+export const SESSION_REPORT_DELIVERY_EVENT = "minz:session-report-delivery";
 export const PRIMARY_CHILD_PROFILE_ID = "primary";
 const CHILD_PROFILE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -32,24 +36,30 @@ export function hasActiveChildGameData() {
 }
 
 export function activateChildProfile(
-  child: { id: string; displayName: string; schoolLevel: StoredGameData["playerProfile"]["schoolLevel"]; grade: number },
+  child: { id: string; displayName: string; schoolLevel: StoredGameData["playerProfile"]["schoolLevel"]; grade: number; characterId?: string },
 ) {
   if (typeof window === "undefined" || !isValidChildProfileId(child.id)) return false;
   window.localStorage.setItem(ACTIVE_CHILD_PROFILE_KEY, child.id);
   const storageKey = getChildStorageKey(child.id);
   if (window.localStorage.getItem(storageKey) === null) {
     const initial = createDefaultGameData();
+    const character = getCharacter(child.characterId);
     initial.playerProfile = {
       displayName: child.displayName,
       schoolLevel: child.schoolLevel,
       grade: child.grade,
+      characterId: character.id,
     };
     initial.parentSettings = {
       ...initial.parentSettings,
       playerName: child.displayName,
       schoolLevel: child.schoolLevel,
       grade: child.grade,
+      characterId: character.id,
+      selectedSkillId: character.defaultSkillId,
     };
+    initial.inventory.ownedItemIds = Array.from(new Set([...initial.inventory.ownedItemIds, character.defaultSkillId]));
+    initial.inventory.unlockedSkillIds = Array.from(new Set([...initial.inventory.unlockedSkillIds, character.defaultSkillId]));
     window.localStorage.setItem(storageKey, JSON.stringify(initial));
   }
   window.dispatchEvent(new Event(ACTIVE_CHILD_CHANGED_EVENT));
@@ -97,16 +107,24 @@ export const DEFAULT_SETTINGS: ParentSettings = {
   friendRole: "magic",
   academicSemester: 2,
   selectedLearningGoalId: "elementary-2-s2-math-w8",
+  characterId: "thunder-sword",
+  selectedSkillId: "thunder-strike",
 };
 
 export function createDefaultGameData(): StoredGameData {
   return {
-    version: 5,
-    playerProfile: { displayName: "민표", schoolLevel: "elementary", grade: 2 },
+    version: 6,
+    playerProfile: { displayName: "민표", schoolLevel: "elementary", grade: 2, characterId: "thunder-sword" },
     parentSettings: DEFAULT_SETTINGS,
     battleProgress: { lastPhase: "INTRO" },
     conceptProgress: { "place-value": "발견 중" },
-    inventory: { coins: 0, badges: [] },
+    inventory: {
+      coins: 0,
+      badges: [],
+      ownedItemIds: ["training-sword", "thunder-strike"],
+      equippedWeaponId: "training-sword",
+      unlockedSkillIds: ["thunder-strike"],
+    },
     rewardHistory: [],
     opinionEntries: [],
     playHistory: [],
@@ -124,6 +142,7 @@ export function createDefaultGameData(): StoredGameData {
     },
     learningGoalProgress: {},
     trainingHistory: [],
+    sessionReports: [],
   };
 }
 
@@ -131,11 +150,13 @@ export function parseStoredGameData(raw: string | null): StoredGameData {
   if (!raw) return createDefaultGameData();
   try {
     const parsed = JSON.parse(raw) as Partial<Omit<StoredGameData, "version">> & { version?: number };
-    if (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3 && parsed.version !== 4 && parsed.version !== 5) return createDefaultGameData();
+    if (![1, 2, 3, 4, 5, 6].includes(parsed.version ?? 0)) return createDefaultGameData();
     const defaults = createDefaultGameData();
     const rawSettings = { ...defaults.parentSettings, ...(parsed.parentSettings ?? {}) };
     const playerStage = normalizeLearningStage(rawSettings.schoolLevel, rawSettings.grade);
     const friendStage = normalizeLearningStage(rawSettings.friendSchoolLevel, rawSettings.friendGrade);
+    const character = getCharacter(rawSettings.characterId);
+    const selectedSkill = getSkill(rawSettings.selectedSkillId);
     const parentSettings: ParentSettings = {
       ...rawSettings,
       ...playerStage,
@@ -146,7 +167,10 @@ export function parseStoredGameData(raw: string | null): StoredGameData {
         : getWeeklyLearningGoals(playerStage, rawSettings.academicSemester === 1 ? 1 : 2)[0].id,
       friendSchoolLevel: friendStage.schoolLevel,
       friendGrade: friendStage.grade,
+      characterId: character.id,
+      selectedSkillId: selectedSkill.id as SkillId,
     };
+    const starterSkillId = getCharacter(parentSettings.characterId).defaultSkillId;
     const rawPlayer = { ...defaults.playerProfile, ...(parsed.playerProfile ?? {}) };
     const profileStage = normalizeLearningStage(rawPlayer.schoolLevel, rawPlayer.grade);
     const friendProfiles = safeArray<StoredGameData["friendProfiles"][number]>(parsed.friendProfiles).map((friend) => {
@@ -182,13 +206,23 @@ export function parseStoredGameData(raw: string | null): StoredGameData {
     return {
       ...defaults,
       ...parsed,
-      version: 5,
+      version: 6,
       parentSettings,
-      playerProfile: { ...rawPlayer, ...profileStage },
+      playerProfile: { ...rawPlayer, ...profileStage, characterId: getCharacter(rawPlayer.characterId).id },
       friendProfiles,
       inventory: {
         coins: typeof rawInventory.coins === "number" && Number.isFinite(rawInventory.coins) ? Math.max(0, rawInventory.coins) : defaults.inventory.coins,
         badges: safeArray<string>(rawInventory.badges),
+        ownedItemIds: Array.from(new Set([...safeArray<EquipmentId | SkillId>(rawInventory.ownedItemIds, defaults.inventory.ownedItemIds)
+          .filter((id) => SHOP_ITEMS.some((item) => item.id === id)), starterSkillId])),
+        equippedWeaponId: SHOP_ITEMS.some((item) => item.type === "weapon" && item.id === rawInventory.equippedWeaponId)
+          ? rawInventory.equippedWeaponId as EquipmentId
+          : defaults.inventory.equippedWeaponId,
+        ...(SHOP_ITEMS.some((item) => item.type === "armor" && item.id === rawInventory.equippedArmorId)
+          ? { equippedArmorId: rawInventory.equippedArmorId as EquipmentId }
+          : {}),
+        unlockedSkillIds: Array.from(new Set([...safeArray<SkillId>(rawInventory.unlockedSkillIds, defaults.inventory.unlockedSkillIds)
+          .filter((id) => SHOP_ITEMS.some((item) => item.type === "skill" && item.id === id)), starterSkillId])),
       },
       conceptProgress: isRecord(parsed.conceptProgress) ? parsed.conceptProgress as StoredGameData["conceptProgress"] : defaults.conceptProgress,
       rewardHistory: safeArray<AdventureRecord>(parsed.rewardHistory),
@@ -207,6 +241,7 @@ export function parseStoredGameData(raw: string | null): StoredGameData {
         ? parsed.learningGoalProgress as StoredGameData["learningGoalProgress"]
         : defaults.learningGoalProgress,
       trainingHistory: Array.isArray(parsed.trainingHistory) ? parsed.trainingHistory : defaults.trainingHistory,
+      sessionReports: safeArray<LearningSessionReport>(parsed.sessionReports).slice(-100),
     };
   } catch {
     return createDefaultGameData();
@@ -239,14 +274,20 @@ export function saveSettings(settings: ParentSettings): StoredGameData {
     friendGrade: friendStage.grade,
     selectedLearningGoalId,
   };
+  const selectedCharacter = getCharacter(normalizedSettings.characterId);
   const friendProfiles = normalizedSettings.mode === "local-shared-screen"
     ? [{ id: "friend-local", displayName: normalizedSettings.friendName, schoolLevel: normalizedSettings.friendSchoolLevel, grade: normalizedSettings.friendGrade, role: normalizedSettings.friendRole }]
     : current.friendProfiles;
   const next: StoredGameData = {
     ...current,
-    version: 5,
-    playerProfile: { displayName: normalizedSettings.playerName, schoolLevel: normalizedSettings.schoolLevel, grade: normalizedSettings.grade },
+    version: 6,
+    playerProfile: { displayName: normalizedSettings.playerName, schoolLevel: normalizedSettings.schoolLevel, grade: normalizedSettings.grade, characterId: normalizedSettings.characterId },
     parentSettings: normalizedSettings,
+    inventory: {
+      ...current.inventory,
+      ownedItemIds: Array.from(new Set([...current.inventory.ownedItemIds, selectedCharacter.defaultSkillId])),
+      unlockedSkillIds: Array.from(new Set([...current.inventory.unlockedSkillIds, selectedCharacter.defaultSkillId])),
+    },
     friendProfiles,
     localCoopSettings: { enabled: normalizedSettings.mode === "local-shared-screen" },
     accessibilitySettings: {
@@ -303,6 +344,7 @@ export function saveAdventure(record: AdventureRecord): StoredGameData {
       [completedGoal.skillTag]: current.conceptProgress[completedGoal.skillTag] === "자유롭게 사용" ? "자유롭게 사용" : "익히는 중",
     } : current.conceptProgress,
     inventory: {
+      ...current.inventory,
       coins: current.inventory.coins + record.coins,
       badges: Array.from(new Set([...current.inventory.badges, ...record.badges])),
     },
@@ -419,6 +461,96 @@ export function saveTrainingAttempt(record: TrainingAttemptRecord): StoredGameDa
       },
     },
     trainingHistory: [...current.trainingHistory, record],
+  };
+  writeGameData(next);
+  return next;
+}
+
+export function saveSessionReport(report: LearningSessionReport): StoredGameData {
+  const current = readGameData();
+  const next = {
+    ...current,
+    sessionReports: [...current.sessionReports.filter((item) => item.id !== report.id), report].slice(-100),
+  };
+  writeGameData(next, false);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(SESSION_REPORT_READY_EVENT));
+  return next;
+}
+
+export function updateSessionReportDelivery(
+  reportId: string,
+  deliveryStatus: LearningSessionReport["deliveryStatus"],
+  deliveredAt?: string,
+): StoredGameData {
+  const current = readGameData();
+  const next = {
+    ...current,
+    sessionReports: current.sessionReports.map((report) => report.id === reportId
+      ? { ...report, deliveryStatus, ...(deliveredAt ? { deliveredAt } : {}) }
+      : report),
+  };
+  writeGameData(next, false);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(SESSION_REPORT_DELIVERY_EVENT));
+  return next;
+}
+
+export function purchaseShopItem(itemId: string): { ok: boolean; message: string; data: StoredGameData } {
+  const current = readGameData();
+  const item = SHOP_ITEMS.find((candidate) => candidate.id === itemId);
+  if (!item) return { ok: false, message: "상점 물품을 찾지 못했습니다.", data: current };
+  if (current.inventory.ownedItemIds.includes(item.id)) return { ok: false, message: "이미 가진 물품입니다.", data: current };
+  if (current.inventory.coins < item.cost) return { ok: false, message: `모험 코인이 ${item.cost - current.inventory.coins}개 더 필요합니다.`, data: current };
+  const next: StoredGameData = {
+    ...current,
+    inventory: {
+      ...current.inventory,
+      coins: current.inventory.coins - item.cost,
+      ownedItemIds: [...current.inventory.ownedItemIds, item.id],
+      unlockedSkillIds: item.type === "skill"
+        ? Array.from(new Set([...current.inventory.unlockedSkillIds, item.id as SkillId]))
+        : current.inventory.unlockedSkillIds,
+    },
+  };
+  writeGameData(next);
+  return { ok: true, message: `${item.name} 획득! 인벤토리에서 장착할 수 있어요.`, data: next };
+}
+
+export function equipItem(itemId: string): StoredGameData {
+  const current = readGameData();
+  const item = SHOP_ITEMS.find((candidate) => candidate.id === itemId);
+  if (!item || item.type === "skill" || !current.inventory.ownedItemIds.includes(item.id)) return current;
+  const next: StoredGameData = {
+    ...current,
+    inventory: {
+      ...current.inventory,
+      ...(item.type === "weapon" ? { equippedWeaponId: item.id as EquipmentId } : { equippedArmorId: item.id as EquipmentId }),
+    },
+  };
+  writeGameData(next);
+  return next;
+}
+
+export function selectBattleSkill(skillId: string): StoredGameData {
+  const current = readGameData();
+  if (!current.inventory.unlockedSkillIds.includes(skillId as SkillId)) return current;
+  const next: StoredGameData = {
+    ...current,
+    parentSettings: { ...current.parentSettings, selectedSkillId: skillId as SkillId },
+  };
+  writeGameData(next);
+  return next;
+}
+
+export function selectCharacter(characterId: string): StoredGameData {
+  const current = readGameData();
+  const character = getCharacter(characterId);
+  const unlockedSkillIds = Array.from(new Set([...current.inventory.unlockedSkillIds, character.defaultSkillId]));
+  const ownedItemIds = Array.from(new Set([...current.inventory.ownedItemIds, character.defaultSkillId]));
+  const next: StoredGameData = {
+    ...current,
+    playerProfile: { ...current.playerProfile, characterId: character.id },
+    parentSettings: { ...current.parentSettings, characterId: character.id, selectedSkillId: character.defaultSkillId },
+    inventory: { ...current.inventory, unlockedSkillIds, ownedItemIds },
   };
   writeGameData(next);
   return next;

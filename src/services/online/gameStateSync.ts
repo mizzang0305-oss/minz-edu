@@ -1,6 +1,7 @@
 import type { TrainingAttemptRecord } from "@/types/curriculum";
 import type { AdventureRecord, StageProgress, StoredGameData } from "@/types/progress";
 import { isValidChildProfileId } from "@/services/online/childProfileSync";
+import { isMisconceptionTag, type MisconceptionTagCounts } from "@/learning/misconceptionTags";
 
 export const GAME_SYNC_SCHEMA_VERSION = 1 as const;
 export const GAME_DATA_CHANGED_EVENT = "minz:game-data-changed";
@@ -69,6 +70,17 @@ function isSafeInteger(value: unknown, maximum = MAX_COUNTER): value is number {
   return Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= maximum;
 }
 
+function parseMisconceptionTagCounts(value: unknown): MisconceptionTagCounts | null | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value) || Object.keys(value).length > 12) return null;
+  const counts: MisconceptionTagCounts = {};
+  for (const [tag, count] of Object.entries(value)) {
+    if (!isMisconceptionTag(tag) || !isSafeInteger(count, 100) || count < 1) return null;
+    counts[tag] = count;
+  }
+  return counts;
+}
+
 function isSafeId(value: unknown): value is string {
   return typeof value === "string" && ID_PATTERN.test(value);
 }
@@ -133,7 +145,7 @@ function parseAdventure(value: unknown): SyncedAdventure | null {
 
 function parseTrainingAttempt(value: unknown): TrainingAttemptRecord | null {
   if (!isRecord(value) || !isSafeId(value.id) || !isSafeId(value.goalId) || !isIsoTimestamp(value.completedAt)) return null;
-  if (!hasOnlyKeys(value, ["id", "goalId", "mode", "completedAt", "questionCount", "firstTryCorrect", "retryCount", "hintCount", "passed"])) return null;
+  if (!hasOnlyKeys(value, ["id", "goalId", "mode", "completedAt", "questionCount", "firstTryCorrect", "retryCount", "hintCount", "passed", "durationSeconds", "misconceptionTagCounts"])) return null;
   if (value.mode !== "practice" && value.mode !== "diagnostic") return null;
   if (
     !isSafeInteger(value.questionCount, 100) ||
@@ -141,9 +153,24 @@ function parseTrainingAttempt(value: unknown): TrainingAttemptRecord | null {
     !isSafeInteger(value.retryCount, 1_000) ||
     !isSafeInteger(value.hintCount, 1_000) ||
     typeof value.passed !== "boolean" ||
-    value.firstTryCorrect > value.questionCount
+    value.firstTryCorrect > value.questionCount ||
+    (value.durationSeconds !== undefined && !isSafeInteger(value.durationSeconds, 86_400))
   ) return null;
-  return value as TrainingAttemptRecord;
+  const misconceptionTagCounts = parseMisconceptionTagCounts(value.misconceptionTagCounts);
+  if (misconceptionTagCounts === null) return null;
+  return {
+    id: value.id,
+    goalId: value.goalId,
+    mode: value.mode,
+    completedAt: value.completedAt,
+    questionCount: value.questionCount,
+    firstTryCorrect: value.firstTryCorrect,
+    retryCount: value.retryCount,
+    hintCount: value.hintCount,
+    passed: value.passed,
+    ...(typeof value.durationSeconds === "number" ? { durationSeconds: value.durationSeconds } : {}),
+    ...(misconceptionTagCounts && Object.keys(misconceptionTagCounts).length > 0 ? { misconceptionTagCounts } : {}),
+  };
 }
 
 function parseStageProgress(value: unknown): GameSyncSnapshot["stageProgress"] | null {
@@ -352,6 +379,7 @@ function normalizeTrainingAttempt(value: unknown): TrainingAttemptRecord | null 
   const completedAt = normalizeTimestamp(value.completedAt);
   const firstTryCorrect = normalizeCounter(value.firstTryCorrect, 100);
   const questionCount = Math.max(firstTryCorrect, normalizeCounter(value.questionCount, 100));
+  const misconceptionTagCounts = parseMisconceptionTagCounts(value.misconceptionTagCounts);
   return {
     id: normalizeRecordId(value.id, "legacy-training", completedAt, [
       value.goalId,
@@ -371,6 +399,8 @@ function normalizeTrainingAttempt(value: unknown): TrainingAttemptRecord | null 
     retryCount: normalizeCounter(value.retryCount, 1_000),
     hintCount: normalizeCounter(value.hintCount, 1_000),
     passed: value.passed === true,
+    ...(isSafeInteger(value.durationSeconds, 86_400) ? { durationSeconds: value.durationSeconds } : {}),
+    ...(misconceptionTagCounts && Object.keys(misconceptionTagCounts).length > 0 ? { misconceptionTagCounts } : {}),
   };
 }
 
@@ -605,6 +635,7 @@ export function applyGameSyncSnapshot(local: StoredGameData, remote: GameSyncSna
   return {
     ...local,
     inventory: {
+      ...local.inventory,
       coins: merged.legacyInventory.coins + playHistory.reduce((sum, item) => sum + item.coins, 0),
       badges,
     },

@@ -15,7 +15,7 @@ export default function HomePage() {
           <p>번개 검을 깨우고 친구와 힘을 합쳐<br />숫자 수호자의 봉인을 풀어라!</p>
           <div className="game-start-actions">
             <AdventureStartLink />
-            <Link href="/room" className="game-coop-button">친구와 온라인 협동</Link>
+            <Link href="/room" className="game-coop-button">온라인 친구 대기실</Link>
           </div>
           <div className="game-mode-chips"><span>5~10분 한 판</span><span>혼자 또는 친구와</span><span>보물 모으기</span></div>
         </div>
@@ -28,7 +28,7 @@ export default function HomePage() {
       </section>
       <section className="game-feature-strip">
         <article><span>01</span><div><small>찾기</small><h2>움직이며 원리 발견</h2><p>코스를 탐험하고 직접 조작하며 문제의 원리를 찾아요.</p></div></article>
-        <article><span>02</span><div><small>함께</small><h2>각자 기기에서 합동 공격</h2><p>두 영웅의 작전이 모이면 드래곤 필살기가 열려요.</p></div></article>
+        <article><span>02</span><div><small>함께</small><h2>같은 화면에서 합동 공격</h2><p>현재 전투는 한 기기에서 두 영웅의 차례와 필살기를 함께 사용해요.</p></div></article>
         <article><span>03</span><div><small>보물</small><h2>다시 도전해도 보물이 쌓여요</h2><p>맞힌 답뿐 아니라 끝까지 시도한 용기도 기록해요.</p></div></article>
       </section>
     </main>
