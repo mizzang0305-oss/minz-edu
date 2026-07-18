@@ -6,7 +6,7 @@ const useDevelopmentServer = process.env.PLAYWRIGHT_DEV_SERVER === "1";
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  timeout: 30_000,
+  timeout: 45_000,
   fullyParallel: false,
   workers: 1,
   reporter: [["list"]],

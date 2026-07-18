@@ -49,8 +49,8 @@ export function resolveBattleFormation(
   return {
     compactLandscape: false,
     players: [
-      { x: safeArea.x + safeArea.width * 0.17, y: bottom - 77, width: 240, height: 104 },
-      { x: safeArea.x + safeArea.width * 0.35, y: bottom - 58, width: 151, height: 100 },
+      { x: safeArea.x + safeArea.width * 0.17, y: bottom - 115, width: 240, height: 104 },
+      { x: safeArea.x + safeArea.width * 0.35, y: bottom - 96, width: 151, height: 100 },
     ],
     boss: {
       x: safeArea.x + safeArea.width * 0.84,

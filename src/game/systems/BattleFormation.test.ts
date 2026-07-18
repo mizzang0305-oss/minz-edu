@@ -9,6 +9,8 @@ describe("battle HUD-safe formation", () => {
     expect(formation.compactLandscape).toBe(false);
     expect(formation.players[1].y + formation.players[1].height / 2 + 8).toBeLessThanOrEqual(safeArea.y + safeArea.height);
     expect(formation.boss.y + formation.boss.height / 2 + 18).toBeLessThanOrEqual(safeArea.y + safeArea.height);
+    expect(formation.players[0].y).toBeLessThan(safeArea.y + safeArea.height * 0.65);
+    expect(formation.players[1].y).toBeLessThan(safeArea.y + safeArea.height * 0.72);
   });
 
   it("compresses and scales the fight into the left half beside a phone HUD", () => {

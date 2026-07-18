@@ -13,6 +13,7 @@ import {
   ADVENTURE_WORLD_WIDTH,
   NumberForestScene,
   pointInExpandedRect,
+  resolveBossPhasePresentation,
   resolveAxisSeparatedMovement,
 } from "./NumberForestScene";
 
@@ -92,6 +93,14 @@ describe("NumberForestScene movement helpers", () => {
     expect([ADVENTURE_WORLD_WIDTH, ADVENTURE_WORLD_HEIGHT]).toEqual([928, 512]);
     expect(pointInExpandedRect({ x: 95, y: 95 }, { x: 100, y: 100, width: 20, height: 20 }, 5)).toBe(true);
     expect(pointInExpandedRect({ x: 94, y: 95 }, { x: 100, y: 100, width: 20, height: 20 }, 5)).toBe(false);
+  });
+});
+
+describe("NumberForestScene staged monster presentation", () => {
+  it("shows a gentle first guardian before escalating to the final guardian", () => {
+    expect(resolveBossPhasePresentation(1, 10, 135, 135).label).toBe("1단계 · 잠든 수호자 · 보호막 해독 중");
+    expect(resolveBossPhasePresentation(2, 0, 120, 180).label).toBe("2단계 · 깨어난 수호자 · 약점이 드러났어");
+    expect(resolveBossPhasePresentation(3, 0, 40, 225).label).toBe("3단계 · 최종 수호자 · 마지막 결계");
   });
 });
 
