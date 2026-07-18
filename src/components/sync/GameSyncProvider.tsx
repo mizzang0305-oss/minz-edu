@@ -169,7 +169,13 @@ export function GameSyncProvider({ children }: { children: React.ReactNode }) {
           cache: "no-store",
           credentials: "same-origin",
         });
-        if (!sessionResponse.ok) throw new Error("session");
+        if (!sessionResponse.ok) {
+          if ([401, 404, 503].includes(sessionResponse.status)) {
+            if (active) setStatus("local");
+            return;
+          }
+          throw new Error("session");
+        }
         const session = await sessionResponse.json() as { authenticated?: unknown };
         if (session.authenticated !== true) {
           if (active) setStatus("local");
@@ -235,14 +241,9 @@ export function GameSyncProvider({ children }: { children: React.ReactNode }) {
   const contextValue = useMemo(() => status, [status]);
   return (
     <GameSyncContext.Provider value={contextValue}>
-      {status === "checking" ? (
-        <main className="game-sync-loading" aria-live="polite">
-          <span aria-hidden="true">✦</span>
-          <strong>모험 기록을 준비하고 있어요</strong>
-        </main>
-      ) : children}
+      {children}
       {(status === "syncing" || status === "error") && (
-        <div className={`game-sync-toast ${status}`} role="status" aria-live="polite">
+        <div className={`game-sync-toast ${status}`} role="status" aria-live="polite" aria-atomic="true">
           {status === "syncing" ? "모험 기록을 안전하게 저장하는 중…" : "기록은 이 기기에 보관했어요. 인터넷이 연결되면 다시 저장할게요."}
         </div>
       )}

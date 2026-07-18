@@ -16,6 +16,35 @@ const PORTAL_REACH_RADIUS = 100;
 
 type MovementPoint = { x: number; y: number };
 type MovementBounds = { minX: number; maxX: number; minY: number; maxY: number };
+type BossPhase = "shield" | "open" | "final" | "friend";
+
+export function resolveBossPhasePresentation(
+  threatTier: 1 | 2 | 3,
+  bossShield: number,
+  bossHp: number,
+  bossMaxHp: number,
+) {
+  const hpRatio = bossMaxHp > 0 ? bossHp / bossMaxHp : 0;
+  const phase: BossPhase = bossHp === 0 ? "friend" : bossShield > 0 ? "shield" : hpRatio > 0.45 ? "open" : "final";
+  const tierLabels = {
+    1: "잠든 수호자",
+    2: "깨어난 수호자",
+    3: "최종 수호자",
+  } as const;
+  const phaseVisuals = {
+    shield: { color: 0x67e8f9, label: "보호막 해독 중", auraAlpha: 0.78 },
+    open: { color: 0xfacc15, label: "약점이 드러났어", auraAlpha: 0.82 },
+    final: { color: 0xfb7185, label: "마지막 결계", auraAlpha: 0.9 },
+    friend: { color: 0x86efac, label: "혼란이 풀렸어", auraAlpha: 0.35 },
+  } as const;
+  const visual = phaseVisuals[phase];
+  return {
+    phase,
+    color: visual.color,
+    auraAlpha: visual.auraAlpha,
+    label: `${threatTier}단계 · ${tierLabels[threatTier]} · ${visual.label}`,
+  };
+}
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
@@ -59,7 +88,8 @@ export class NumberForestScene extends Phaser.Scene {
   private bossName?: Phaser.GameObjects.Text;
   private bossBattleAura?: Phaser.GameObjects.Ellipse;
   private bossPhaseText?: Phaser.GameObjects.Text;
-  private lastBossPhase?: "shield" | "open" | "final" | "friend";
+  private lastBossPhase?: BossPhase;
+  private bossTelegraphTween?: Phaser.Tweens.Tween;
   private statusText?: Phaser.GameObjects.Text;
   private counterText?: Phaser.GameObjects.Text;
   private portal?: Phaser.GameObjects.Container;
@@ -92,6 +122,8 @@ export class NumberForestScene extends Phaser.Scene {
   private specialActive = false;
   private specialObjects: Phaser.GameObjects.GameObject[] = [];
   private specialTimers: Phaser.Time.TimerEvent[] = [];
+  private explorationOnlyObjects: Phaser.GameObjects.GameObject[] = [];
+  private compactBattleLayout = false;
   private viewport = { width: ADVENTURE_WORLD_WIDTH, height: ADVENTURE_WORLD_HEIGHT };
 
   constructor(stageId: ExplorationStageId = "number-forest") {
@@ -191,7 +223,9 @@ export class NumberForestScene extends Phaser.Scene {
       this.counterText = undefined;
       this.bossBattleAura = undefined;
       this.bossPhaseText = undefined;
+      this.bossTelegraphTween = undefined;
       this.players = [];
+      this.explorationOnlyObjects = [];
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
     this.events.once(Phaser.Scenes.Events.DESTROY, cleanup);
@@ -215,17 +249,37 @@ export class NumberForestScene extends Phaser.Scene {
     ) {
       this.activateInteraction(this.nearbyInteractionId);
     }
-    if (dx === 0 && dy === 0) return;
+    if (dx === 0 && dy === 0) {
+      this.players[0].sprite.setRotation?.(0);
+      this.players[0].aura?.setScale?.(1);
+      return;
+    }
     const movement = movementDelta(dx, dy, delta);
     const dashMultiplier = time < this.dashUntil ? 2.15 : 1;
-    this.moveBy(movement.x * dashMultiplier, movement.y * dashMultiplier);
+    this.moveBy(movement.x * dashMultiplier, movement.y * dashMultiplier, time, dx);
   }
 
   private activateDash(now: number) {
     if (!this.explorationActive || now < this.dashCooldownUntil) return;
     this.dashUntil = now + 260;
     this.dashCooldownUntil = now + 950;
+    const hero = this.players[0];
+    if (!this.reducedMotion && hero?.sprite?.active) {
+      const afterimage = this.add.image(hero.sprite.x, hero.sprite.y, hero.sprite.texture.key)
+        .setDisplaySize(hero.sprite.displayWidth, hero.sprite.displayHeight)
+        .setFlipX(hero.sprite.flipX)
+        .setTint(0x70e4fa)
+        .setAlpha(0.42)
+        .setDepth(Math.max(1, hero.sprite.depth - 1));
+      this.tweens.add({ targets: afterimage, alpha: 0, scaleX: afterimage.scaleX * 1.12, scaleY: afterimage.scaleY * 0.9, duration: 280, ease: "Cubic.easeOut", onComplete: () => afterimage.destroy() });
+      this.cameras.main.shake(80, 0.0012);
+    }
     this.safeSetText(this.statusText, "짧은 대시! 장애물 앞에서는 방향을 바꿔 보세요.");
+  }
+
+  private registerExplorationObject<T extends Phaser.GameObjects.GameObject>(object: T) {
+    this.explorationOnlyObjects.push(object);
+    return object;
   }
 
   private createEnvironment() {
@@ -243,7 +297,7 @@ export class NumberForestScene extends Phaser.Scene {
     });
 
     const bridge = this.map.bridge;
-    this.add.text(bridge.x + bridge.width / 2, bridge.y - 12, bridge.label, { fontSize: "12px", color: "#fff0a8", backgroundColor: "#08243ddd", padding: { x: 6, y: 3 } }).setOrigin(0.5).setDepth(11);
+    this.registerExplorationObject(this.add.text(bridge.x + bridge.width / 2, bridge.y - 12, bridge.label, { fontSize: "12px", color: "#fff0a8", backgroundColor: "#08243ddd", padding: { x: 6, y: 3 } }).setOrigin(0.5).setDepth(11));
 
     const secret = this.map.secretArea;
     const secretGlow = this.add.rectangle(secret.x + secret.width / 2, secret.y + secret.height / 2, secret.width, secret.height, 0x9fe870, 0.08)
@@ -253,6 +307,7 @@ export class NumberForestScene extends Phaser.Scene {
       .on("pointerdown", () => this.activateInteraction(secret.id));
     const secretLabel = this.add.text(secret.x + secret.width / 2, secret.y + secret.height / 2, "?", { fontSize: "20px", color: "#d9ffc3", fontStyle: "bold" }).setOrigin(0.5).setAlpha(0.3).setDepth(6);
     this.secretPathObjects = [secretGlow, secretLabel];
+    this.explorationOnlyObjects.push(secretGlow, secretLabel);
   }
 
   private createTokens() {
@@ -268,13 +323,13 @@ export class NumberForestScene extends Phaser.Scene {
 
   private createNpcs() {
     this.map.npcs.forEach((npc) => {
-      this.add.circle(npc.x, npc.y + 22, 30, 0xffca4b, 0.18).setStrokeStyle(2, 0xffe89a, 0.8).setDepth(14);
-      this.add.image(npc.x, npc.y, "hero2")
+      this.registerExplorationObject(this.add.circle(npc.x, npc.y + 22, 30, 0xffca4b, 0.18).setStrokeStyle(2, 0xffe89a, 0.8).setDepth(14));
+      this.registerExplorationObject(this.add.image(npc.x, npc.y, "hero2")
         .setDisplaySize(151, 100)
         .setDepth(16)
         .setInteractive({ useHandCursor: true })
-        .on("pointerdown", () => this.activateInteraction(npc.id));
-      this.add.text(npc.x, npc.y + 48, npc.name, { fontFamily: "Malgun Gothic, Arial, sans-serif", fontSize: "12px", color: "#fff7c4", fontStyle: "bold", backgroundColor: "#573315dd", padding: { x: 7, y: 3 } }).setOrigin(0.5).setDepth(20);
+        .on("pointerdown", () => this.activateInteraction(npc.id)));
+      this.registerExplorationObject(this.add.text(npc.x, npc.y + 48, npc.name, { fontFamily: "Malgun Gothic, Arial, sans-serif", fontSize: "12px", color: "#fff7c4", fontStyle: "bold", backgroundColor: "#573315dd", padding: { x: 7, y: 3 } }).setOrigin(0.5).setDepth(20));
     });
   }
 
@@ -284,14 +339,15 @@ export class NumberForestScene extends Phaser.Scene {
       .setDepth(Math.round(this.map.chest.y))
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => this.activateInteraction(this.map.chest.id));
-    this.add.text(this.map.chest.x, this.map.chest.y + 48, this.map.chest.rewardLabel, {
+    this.explorationOnlyObjects.push(this.chest);
+    this.registerExplorationObject(this.add.text(this.map.chest.x, this.map.chest.y + 48, this.map.chest.rewardLabel, {
       fontFamily: "Malgun Gothic, Arial, sans-serif",
       fontSize: "11px",
       color: "#fff4b5",
       fontStyle: "bold",
       backgroundColor: "#071b2bdd",
       padding: { x: 6, y: 3 },
-    }).setOrigin(0.5).setDepth(Math.round(this.map.chest.y) + 1);
+    }).setOrigin(0.5).setDepth(Math.round(this.map.chest.y) + 1));
   }
 
   private openChest() {
@@ -478,7 +534,7 @@ export class NumberForestScene extends Phaser.Scene {
     target.setText(value);
   }
 
-  private moveBy(dx: number, dy: number) {
+  private moveBy(dx: number, dy: number, time = 0, inputX = 0) {
     const hero = this.players[0];
     if (!hero || !this.explorationActive) return;
     const startX = hero.sprite.x;
@@ -495,6 +551,11 @@ export class NumberForestScene extends Phaser.Scene {
     hero.sprite.x = movement.x;
     hero.sprite.y = movement.y;
     if (movement.x !== startX) hero.sprite.setFlipX(movement.x < startX);
+    if (!this.reducedMotion) {
+      const stride = Math.sin(time / 85);
+      hero.sprite.setRotation(Phaser.Math.DegToRad(clamp(inputX * 2.6 + stride * 0.8, -4, 4)));
+      hero.aura.setScale(1 + Math.abs(stride) * 0.08, 1 - Math.abs(stride) * 0.04);
+    }
     hero.name.setPosition(hero.sprite.x, hero.sprite.y + 54);
     hero.aura.setPosition(hero.sprite.x, hero.sprite.y + 24);
     hero.sprite.setDepth(Math.round(hero.sprite.y));
@@ -597,14 +658,19 @@ export class NumberForestScene extends Phaser.Scene {
     this.touchDirections.clear();
     this.cameras.main.stopFollow();
     this.cameras.main.centerOn(ADVENTURE_WORLD_WIDTH / 2, ADVENTURE_WORLD_HEIGHT / 2);
+    this.explorationOnlyObjects.forEach((object) => {
+      const visual = object as Phaser.GameObjects.GameObject & { setVisible?: (visible: boolean) => unknown };
+      visual.setVisible?.(false);
+    });
     this.tokens.forEach((token) => {
       this.tweens.killTweensOf(token);
       token.setVisible(false).setActive(false);
     });
     if (this.portalRing) this.tweens.killTweensOf(this.portalRing);
     this.portal?.setVisible(false);
+    this.createBattleBackdrop();
     this.bossBattleAura = this.add.ellipse(0, 0, 1, 1, 0x67e8f9, 0.08).setStrokeStyle(4, 0x67e8f9, 0.62).setDepth(7);
-    this.bossPhaseText = this.add.text(0, 0, "보호막 해독 중", {
+    this.bossPhaseText = this.add.text(0, 0, `${this.map.boss.threatTier}단계 · 보호막 해독 중`, {
       fontFamily: "Malgun Gothic, Arial, sans-serif",
       fontSize: "14px",
       color: "#dffbff",
@@ -616,8 +682,28 @@ export class NumberForestScene extends Phaser.Scene {
     this.boss?.setAlpha(1);
   }
 
+  private createBattleBackdrop() {
+    const area = this.map.battleSafeArea;
+    const lane = this.add.rectangle(area.x + area.width / 2, area.y + area.height / 2, area.width, area.height, this.map.visuals.overlayColor, 0.36)
+      .setStrokeStyle(2, this.map.visuals.accentColor, 0.28)
+      .setDepth(5);
+    this.add.ellipse(area.x + area.width * 0.25, area.y + area.height * 0.78, area.width * 0.42, 76, 0x071b2b, 0.68)
+      .setStrokeStyle(2, 0x67e8f9, 0.22)
+      .setDepth(6);
+    this.add.ellipse(area.x + area.width * 0.82, area.y + area.height * 0.73, area.width * 0.28, 68, 0x260c22, 0.58)
+      .setStrokeStyle(2, 0xffd45c, 0.24)
+      .setDepth(6);
+    if (!this.reducedMotion) {
+      lane.setAlpha(0);
+      this.tweens.add({ targets: lane, alpha: 1, duration: 360, ease: "Cubic.easeOut" });
+    }
+  }
+
   private applyBattleFormation(animate: boolean) {
     const formation = resolveBattleFormation(this.map.battleSafeArea, this.map.boss.threatTier, this.viewport);
+    this.compactBattleLayout = formation.compactLandscape;
+    this.statusText?.setVisible(!formation.compactLandscape);
+    this.bossPhaseText?.setFontSize(formation.compactLandscape ? 11 : 14);
     this.players.forEach((player, index) => {
       const target = formation.players[Math.min(index, 1)];
       player.sprite.setDisplaySize(target.width, target.height);
@@ -638,23 +724,27 @@ export class NumberForestScene extends Phaser.Scene {
   }
 
   private updateBossPhase(state: CoopBattleState) {
-    const hpRatio = state.bossMaxHp > 0 ? state.bossHp / state.bossMaxHp : 0;
-    const phase = state.bossHp === 0 ? "friend" : state.bossShield > 0 ? "shield" : hpRatio > 0.45 ? "open" : "final";
-    const phaseVisuals = {
-      shield: { color: 0x67e8f9, label: "보호막 해독 중" },
-      open: { color: 0xfacc15, label: "약점이 드러났어" },
-      final: { color: 0xfb7185, label: "마지막 결계" },
-      friend: { color: 0x86efac, label: "혼란이 풀렸어" },
-    } as const;
-    const visual = phaseVisuals[phase];
-    if (phase === this.lastBossPhase) return;
-    this.lastBossPhase = phase;
-    this.bossBattleAura?.setFillStyle(visual.color, phase === "friend" ? 0.04 : 0.1).setStrokeStyle(4, visual.color, phase === "friend" ? 0.25 : 0.72);
-    this.safeSetText(this.bossPhaseText, visual.label);
+    const visual = resolveBossPhasePresentation(this.map.boss.threatTier, state.bossShield, state.bossHp, state.bossMaxHp);
+    if (visual.phase === this.lastBossPhase) return;
+    this.lastBossPhase = visual.phase;
+    this.bossBattleAura?.setFillStyle(visual.color, visual.phase === "friend" ? 0.04 : 0.1).setStrokeStyle(4, visual.color, visual.phase === "friend" ? 0.25 : 0.72);
+    this.safeSetText(this.bossPhaseText, this.compactBattleLayout ? `${this.map.boss.threatTier}단계 · ${visual.label.split(" · ").at(-1)}` : visual.label);
+    if (visual.phase === "friend") this.boss?.clearTint();
+    else if (visual.phase === "final") this.boss?.setTint(0xffc2ca);
+    else this.boss?.clearTint();
     if (!this.reducedMotion && this.bossBattleAura?.active) {
       this.bossBattleAura.setScale(1.18).setAlpha(1);
-      this.tweens.add({ targets: this.bossBattleAura, scale: 1, alpha: phase === "friend" ? 0.35 : 0.78, duration: 420, ease: "Cubic.easeOut" });
+      this.tweens.add({ targets: this.bossBattleAura, scale: 1, alpha: visual.auraAlpha, duration: 420, ease: "Cubic.easeOut" });
     }
+  }
+
+  private clearBossTelegraph() {
+    this.bossTelegraphTween?.stop();
+    this.bossTelegraphTween?.remove();
+    this.bossTelegraphTween = undefined;
+    this.bossBattleAura?.setScale(1).setAlpha(0.78);
+    this.lastBossPhase = undefined;
+    if (!this.disposed && this.currentState) this.updateBossPhase(this.currentState);
   }
 
   private playBossAttack(targetPlayerIndex: number, outcome: "telegraph" | "dodge" | "hit", attackName: string) {
@@ -678,17 +768,21 @@ export class NumberForestScene extends Phaser.Scene {
     if (outcome === "telegraph") {
       boss.setTint(0xffc857);
       showCallout(`${attackName} 준비!`, "#ffe89a", true);
-      this.time.delayedCall(280, () => {
+      this.time.delayedCall(900, () => {
         if (!this.disposed && boss.active) boss.clearTint();
-        this.lastBossPhase = undefined;
-        if (!this.disposed && this.currentState) this.updateBossPhase(this.currentState);
       });
       if (!this.reducedMotion) {
         this.tweens.add({ targets: boss, x: boss.x - 18, scaleX: boss.scaleX * 1.04, scaleY: boss.scaleY * 1.04, duration: 170, yoyo: true, ease: "Sine.easeInOut" });
-        this.bossBattleAura?.setStrokeStyle(5, 0xffb84d, 0.9);
+        if (this.bossBattleAura?.active) {
+          this.bossBattleAura.setStrokeStyle(6, 0xffb84d, 0.95);
+          this.bossTelegraphTween?.remove();
+          this.bossTelegraphTween = this.tweens.add({ targets: this.bossBattleAura, scale: 1.13, alpha: 1, duration: 420, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+        }
       }
       return;
     }
+
+    this.clearBossTelegraph();
 
     const projectile = this.add.circle(boss.x - boss.displayWidth * 0.35, boss.y, 18, outcome === "dodge" ? 0xffd45c : 0xff765f, 0.95).setStrokeStyle(5, 0xfff4c4, 0.9).setDepth(52);
     const finish = () => {
@@ -753,7 +847,15 @@ export class NumberForestScene extends Phaser.Scene {
           if (!this.disposed && this.boss?.active) this.boss.clearTint();
         });
         const hit = this.add.star(this.boss!.x - 55, this.boss!.y, 10, 10, 36, kind === "strong" ? 0x64e7f7 : 0xff72c4, 1).setDepth(50);
+        const impactRing = this.add.ellipse(this.boss!.x - 44, this.boss!.y, 54, 54, kind === "strong" ? 0x64e7f7 : 0xff72c4, 0.08)
+          .setStrokeStyle(7, kind === "strong" ? 0xbff8ff : 0xffd3f1, 0.95)
+          .setDepth(49);
         this.tweens.add({ targets: hit, scale: 4, angle: 45, alpha: 0, duration: 520, ease: "Cubic.easeOut", onComplete: () => hit.destroy() });
+        this.tweens.add({ targets: impactRing, scale: 3.2, alpha: 0, duration: 430, ease: "Cubic.easeOut", onComplete: () => impactRing.destroy() });
+        if (this.boss?.active) {
+          const bossX = this.boss.x;
+          this.tweens.add({ targets: this.boss, x: bossX + 24, angle: kind === "strong" ? 4 : -4, duration: 90, yoyo: true, ease: "Power2" });
+        }
         this.showCombatCallout(kind);
       },
     });
@@ -809,8 +911,16 @@ export class NumberForestScene extends Phaser.Scene {
       }
       if (!this.reducedMotion) {
         const impact = this.add.star(this.boss?.x ?? width * 0.78, this.boss?.y ?? height * 0.55, 12, 18, 64, 0xffe879, 1).setDepth(64);
-        this.specialObjects.push(impact);
+        const shockwave = this.add.ellipse(this.boss?.x ?? width * 0.78, this.boss?.y ?? height * 0.55, 90, 90, 0x67e8f9, 0.05)
+          .setStrokeStyle(10, 0xffe879, 0.95)
+          .setDepth(64);
+        this.specialObjects.push(impact, shockwave);
         this.tweens.add({ targets: impact, scale: 4.5, angle: 75, alpha: 0, duration: 620, ease: "Cubic.easeOut" });
+        this.tweens.add({ targets: shockwave, scale: 6, alpha: 0, duration: 720, ease: "Cubic.easeOut" });
+        if (this.boss?.active) {
+          const bossX = this.boss.x;
+          this.tweens.add({ targets: this.boss, x: bossX + 42, angle: 7, duration: 130, yoyo: true, repeat: 1, ease: "Power2" });
+        }
       }
       this.boss?.setAlpha(0.1);
     });
