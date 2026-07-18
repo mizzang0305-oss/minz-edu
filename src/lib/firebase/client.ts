@@ -7,6 +7,7 @@ import {
   setPersistence,
   signInWithCustomToken,
 } from "firebase/auth";
+import { bootstrapFirebaseAppCheckMonitoring } from "./appCheck";
 
 type FirebasePublicConfig = {
   apiKey: string;
@@ -35,7 +36,9 @@ export function getFirebaseClientApp() {
   if (!config) {
     throw new Error("Firebase public configuration is missing.");
   }
-  return getApps().length ? getApp() : initializeApp(config);
+  const app = getApps().length ? getApp() : initializeApp(config);
+  bootstrapFirebaseAppCheckMonitoring(app);
+  return app;
 }
 
 export function hasFirebasePublicConfig() {
