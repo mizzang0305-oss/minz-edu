@@ -13,7 +13,8 @@ service cloud.firestore {
     function validLearningStage(schoolLevel, grade) {
       return schoolLevel is string && grade is int && (
         (schoolLevel == 'kindergarten' && grade >= 5 && grade <= 7) ||
-        (schoolLevel == 'elementary' && grade >= 1 && grade <= 6)
+        (schoolLevel == 'elementary' && grade >= 1 && grade <= 6) ||
+        (schoolLevel == 'middle' && grade >= 1 && grade <= 3)
       );
     }
 
@@ -110,25 +111,9 @@ service cloud.firestore {
       allow create, update, delete: if false;
 
       match /commands/{eventId} {
-        allow create: if isRoomGuardian(roomId)
-          && request.resource.data.keys().hasOnly([
-            'eventId', 'playerId', 'expectedRevision', 'type',
-            'payload', 'clientTimestamp'
-          ])
-          && request.resource.data.eventId == eventId
-          && request.resource.data.eventId.size() >= 1
-          && request.resource.data.eventId.size() <= 128
-          && request.resource.data.playerId is string
-          && request.resource.data.playerId.size() <= 128
-          && request.resource.data.expectedRevision is int
-          && request.resource.data.expectedRevision >= 0
-          && request.resource.data.type in [
-            'PLAYER_READY', 'ANSWER_SUBMIT', 'HINT_SEND', 'SPECIAL_READY'
-          ]
-          && request.resource.data.payload is map
-          && request.resource.data.payload.keys().size() <= 8
-          && request.resource.data.clientTimestamp is int;
-        allow read, update, delete: if false;
+        // Commands are validated and written only by the authenticated Route
+        // Handler through the Admin SDK. Clients never write raw answer data.
+        allow read, create, update, delete: if false;
       }
 
       match /publicState/{documentId} {

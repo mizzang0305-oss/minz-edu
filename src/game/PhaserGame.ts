@@ -1,13 +1,15 @@
 import * as Phaser from "phaser";
 import { ADVENTURE_WORLD_HEIGHT, ADVENTURE_WORLD_WIDTH, NumberForestScene } from "./scenes/NumberForestScene";
 import type { ExplorationStageId } from "@/types/exploration";
+import type { CharacterId } from "@/types/loadout";
+import { getCharacter } from "@/types/loadout";
 
-export function createPhaserGame(parent: HTMLElement, stageId: ExplorationStageId = "number-forest") {
+export function createPhaserGame(parent: HTMLElement, stageId: ExplorationStageId = "number-forest", characterId?: CharacterId) {
   return new Phaser.Game({
     type: Phaser.AUTO,
     parent,
     backgroundColor: "#082f49",
-    scene: [new NumberForestScene(stageId)],
+    scene: [new NumberForestScene(stageId, getCharacter(characterId).asset)],
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,

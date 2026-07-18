@@ -1,14 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { findLearningGoal, getWeeklyLearningGoals, SUBJECT_START_WEEKS } from "./curriculumCatalog";
+import { findLearningGoal, getMiddleSchoolTeacherReviewQueue, getWeeklyLearningGoals, SUBJECT_START_WEEKS } from "./curriculumCatalog";
+import { isMisconceptionTag } from "./misconceptionTags";
 import { SCHOOL_LEVEL_GRADES } from "./stages";
 
 describe("2학기 주별 추천 경로", () => {
-  it("지원하는 유아·초등 전 과정에서 과목별 8개 목표와 고유 ID를 만든다", () => {
+  it("지원하는 유아·초등·중등 전 과정에서 과목별 목표와 고유 ID를 만든다", () => {
     const all = Object.entries(SCHOOL_LEVEL_GRADES).flatMap(([schoolLevel, grades]) => grades.flatMap((grade) => getWeeklyLearningGoals({ schoolLevel: schoolLevel as keyof typeof SCHOOL_LEVEL_GRADES, grade }, 2)));
-    expect(all).toHaveLength((3 + 6) * 16);
+    expect(all).toHaveLength((3 * 16) + (6 * 20) + (3 * 16));
     expect(new Set(all.map((goal) => goal.id)).size).toBe(all.length);
     expect(all.every((goal) => goal.questions.length >= 3)).toBe(true);
     expect(all.every((goal) => goal.questions.every((question) => question.id.startsWith(goal.skillTag) && question.choices.includes(question.answer)))).toBe(true);
+  });
+
+  it("초등은 영어 4단계 목표를, 중등 1~3학년은 수학·영어 대표 목표를 제공한다", () => {
+    const elementary = getWeeklyLearningGoals({ schoolLevel: "elementary", grade: 1 }, 2);
+    expect(elementary.filter((goal) => goal.subject === "english")).toHaveLength(4);
+    for (const grade of [1, 2, 3]) {
+      const middle = getWeeklyLearningGoals({ schoolLevel: "middle", grade }, 2);
+      expect(middle.some((goal) => goal.subject === "math")).toBe(true);
+      expect(middle.some((goal) => goal.subject === "english")).toBe(true);
+      expect(new Set(middle.flatMap((goal) => goal.questions).map((question) => question.id)).size).toBe(24);
+      expect(middle.every((goal) => goal.questions.length === 6)).toBe(true);
+    }
+  });
+
+  it("중등 문항을 교사 검수 대기열과 익명 오답 유형 태그로 내보낸다", () => {
+    const queue = getMiddleSchoolTeacherReviewQueue();
+
+    expect(queue).toHaveLength(72);
+    expect(new Set(queue.map((item) => item.questionId)).size).toBe(72);
+    expect(queue.every((item) => item.review?.status === "pending-teacher-review")).toBe(true);
+    expect(queue.every((item) => Boolean(item.review?.curriculumReference))).toBe(true);
+    expect(queue.every((item) => isMisconceptionTag(item.misconceptionTag))).toBe(true);
   });
 
   it("수학은 8주차, 국어는 9주차부터 각각 8주 경로를 만든다", () => {

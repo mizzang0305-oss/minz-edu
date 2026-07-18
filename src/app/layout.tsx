@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { AppHeader } from "@/components/common/AppHeader";
 import { ServiceWorkerRegistrar } from "@/components/common/ServiceWorkerRegistrar";
 import { GameSyncProvider } from "@/components/sync/GameSyncProvider";
+import { SessionReportDelivery } from "@/components/reports/SessionReportDelivery";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default function RootLayout({
     <html lang="ko">
       <body>
         <ServiceWorkerRegistrar />
+        <SessionReportDelivery />
         <GameSyncProvider>
           <AppHeader />
           {children}

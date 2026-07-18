@@ -31,7 +31,7 @@ describe("BattleClient learning goal binding", () => {
     writeGameData(data);
   }
 
-  function storeLearningStage(schoolLevel: "kindergarten" | "elementary", grade: number) {
+  function storeLearningStage(schoolLevel: "kindergarten" | "elementary" | "middle", grade: number) {
     const data = createDefaultGameData();
     data.playerProfile = { ...data.playerProfile, schoolLevel, grade };
     data.parentSettings = { ...data.parentSettings, schoolLevel, grade };
@@ -89,7 +89,10 @@ describe("BattleClient learning goal binding", () => {
 
     await user.click(screen.getByRole("button", { name: "50" }));
     expect(screen.getByText(/50, 회피 성공!/)).toBeInTheDocument();
-    expect(screen.getByText(/공격을 피한 뒤 반격/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "어떤 스킬로 반격할까?" })).toBeInTheDocument();
+    expect(screen.getAllByText(/공격을 피한 뒤 반격/).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: /번개 베기/ }));
+    expect(await screen.findByRole("heading", { name: "407과 470 중 더 큰 수는?" })).toBeInTheDocument();
   });
 
   it("유아에게 6초의 느린 보스 공격 예고를 보여준다", async () => {
@@ -121,5 +124,15 @@ describe("BattleClient learning goal binding", () => {
     expect(console).toHaveAccessibleName("전투 학습 명령");
     expect(console.closest(".battle-overlay-dock.is-combat")?.parentElement).toHaveClass("battle-visual");
     expect(screen.getByRole("heading", { name: "352에서 5가 나타내는 값은?" })).toBeInTheDocument();
+  });
+
+  it("장착한 방어구가 시작 보호막에 실제 보너스를 준다", async () => {
+    const data = createDefaultGameData();
+    data.inventory.ownedItemIds.push("forest-armor");
+    data.inventory.equippedArmorId = "forest-armor";
+    writeGameData(data);
+    render(<BattleClient />);
+
+    expect(await screen.findByText("보호막 35")).toBeInTheDocument();
   });
 });

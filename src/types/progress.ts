@@ -1,6 +1,8 @@
 import type { BattleMode, CoopMetrics, PlayerRole } from "./battle";
 import type { SchoolLevel } from "./learning";
 import type { AcademicSemester, LearningGoalProgress, TrainingAttemptRecord } from "./curriculum";
+import type { CharacterId, EquipmentId, SkillId } from "./loadout";
+import type { MisconceptionTagCounts } from "@/learning/misconceptionTags";
 
 export type ParentSettings = {
   playerName: string;
@@ -20,6 +22,8 @@ export type ParentSettings = {
   friendRole: PlayerRole;
   academicSemester: AcademicSemester;
   selectedLearningGoalId: string;
+  characterId: CharacterId;
+  selectedSkillId: SkillId;
 };
 
 export type AdventureRecord = {
@@ -42,6 +46,27 @@ export type AdventureRecord = {
   completedQuestIds?: string[];
   discoveredSecretIds?: string[];
   learningGoalId?: string;
+  durationSeconds?: number;
+};
+
+export type LearningSessionReport = {
+  id: string;
+  source: "training" | "battle";
+  goalId: string;
+  goalTitle?: string;
+  learningObjective?: string;
+  startedAt: string;
+  completedAt: string;
+  durationSeconds: number;
+  questionCount: number;
+  correctCount: number;
+  firstTryCorrect: number;
+  retryCount: number;
+  hintCount: number;
+  weakSkillTag?: string;
+  misconceptionTagCounts?: MisconceptionTagCounts;
+  deliveryStatus: "pending" | "sent" | "failed" | "configuration-required";
+  deliveredAt?: string;
 };
 
 export type StageProgress = {
@@ -67,12 +92,19 @@ export type CoopObservationRecord = {
 };
 
 export type StoredGameData = {
-  version: 5;
-  playerProfile: { displayName: string; schoolLevel: SchoolLevel; grade: number };
+  version: 6;
+  playerProfile: { displayName: string; schoolLevel: SchoolLevel; grade: number; characterId: CharacterId };
   parentSettings: ParentSettings;
   battleProgress: { lastPhase: string; lastPlayedAt?: string };
   conceptProgress: Record<string, "발견 중" | "익히는 중" | "자유롭게 사용">;
-  inventory: { coins: number; badges: string[] };
+  inventory: {
+    coins: number;
+    badges: string[];
+    ownedItemIds: Array<EquipmentId | SkillId>;
+    equippedWeaponId: EquipmentId;
+    equippedArmorId?: EquipmentId;
+    unlockedSkillIds: SkillId[];
+  };
   rewardHistory: AdventureRecord[];
   opinionEntries: Array<{ id: string; text: string; createdAt: string }>;
   playHistory: AdventureRecord[];
@@ -86,4 +118,5 @@ export type StoredGameData = {
   stageProgress: Record<StageProgress["stageId"], StageProgress>;
   learningGoalProgress: Record<string, LearningGoalProgress>;
   trainingHistory: TrainingAttemptRecord[];
+  sessionReports: LearningSessionReport[];
 };

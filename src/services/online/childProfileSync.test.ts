@@ -43,7 +43,7 @@ describe("child profile sync boundary", () => {
     });
   });
 
-  it("rejects missing schoolLevel and the removed middle stage", () => {
+  it("rejects missing schoolLevel and accepts the supported middle stage", () => {
     const base = {
       displayName: "민즈",
       grade: 3,
@@ -52,7 +52,7 @@ describe("child profile sync boundary", () => {
     };
 
     expect(parseChildProfileSyncRequest(base)).toBeNull();
-    expect(parseChildProfileSyncRequest({ ...base, schoolLevel: "middle" })).toBeNull();
+    expect(parseChildProfileSyncRequest({ ...base, schoolLevel: "middle", grade: 2 })).toMatchObject({ schoolLevel: "middle", grade: 2 });
   });
 
   it("reads only the CSRF token from an object-shaped request", () => {
@@ -98,7 +98,7 @@ describe("child profile sync boundary", () => {
       }),
     ).toEqual({ displayName: "민즈", characterId: "thunder-sword" });
     expect(readSafeChildRoomIdentity({ displayName: "민즈", schoolLevel: "elementary", grade: 3, characterId: "../admin" })).toBeNull();
-    expect(readSafeChildRoomIdentity({ displayName: "민즈", schoolLevel: "middle", grade: 2, characterId: "thunder-sword" })).toBeNull();
+    expect(readSafeChildRoomIdentity({ displayName: "민즈", schoolLevel: "middle", grade: 2, characterId: "thunder-sword" })).toMatchObject({ displayName: "민즈", characterId: "thunder-sword" });
   });
 
   it("accepts only friend codes generated from the safe alphabet", () => {

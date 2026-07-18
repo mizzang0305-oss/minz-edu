@@ -11,6 +11,8 @@ import {
   getActiveChildProfileId,
   removeChildProfileData,
 } from "@/stores/storage";
+import { CHARACTERS, getCharacter } from "@/types/loadout";
+import type { CharacterId } from "@/types/loadout";
 
 type ChildListResponse = { children?: SafeChildProfile[]; error?: string };
 
@@ -32,6 +34,7 @@ export function ChildProfileSelector() {
   const [displayName, setDisplayName] = useState("");
   const [schoolLevel, setSchoolLevel] = useState<SchoolLevel>("kindergarten");
   const [grade, setGrade] = useState(SCHOOL_LEVEL_GRADES.kindergarten[0]);
+  const [characterId, setCharacterId] = useState<CharacterId>("thunder-sword");
 
   useEffect(() => {
     let active = true;
@@ -82,7 +85,7 @@ export function ChildProfileSelector() {
           displayName: safeName,
           schoolLevel,
           grade,
-          characterId: "thunder-sword",
+          characterId,
           csrfToken: csrf.csrfToken,
         }),
       });
@@ -141,7 +144,7 @@ export function ChildProfileSelector() {
           <article className={child.id === activeId ? "child-profile-card active" : "child-profile-card"} key={child.id}>
             <span className="child-card-status">{child.id === activeId ? "현재 모험가" : `모험가 ${index + 1}`}</span>
             <Image
-              src={index % 2 === 0 ? "/game-assets/duelyst/hero-thunder.webp" : "/game-assets/duelyst/hero-magic.webp"}
+              src={getCharacter(child.characterId).asset}
               alt=""
               width={420}
               height={304}
@@ -182,6 +185,7 @@ export function ChildProfileSelector() {
             <label>모험 이름<input value={displayName} maxLength={20} autoComplete="off" onChange={(event) => setDisplayName(event.target.value)} /></label>
             <label>학습 단계<select value={schoolLevel} onChange={(event) => { const next = event.target.value as SchoolLevel; setSchoolLevel(next); setGrade(SCHOOL_LEVEL_GRADES[next][0]); }}>{Object.entries(SCHOOL_LEVEL_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
             <label>{schoolLevel === "kindergarten" ? "나이" : "학년"}<select value={grade} onChange={(event) => setGrade(Number(event.target.value))}>{SCHOOL_LEVEL_GRADES[schoolLevel].map((item) => <option value={item} key={item}>{schoolLevel === "kindergarten" ? `${item}세` : `${item}학년`}</option>)}</select></label>
+            <fieldset className="child-character-picker"><legend>캐릭터</legend>{CHARACTERS.map((character) => <label key={character.id} className={characterId === character.id ? "selected" : ""}><input type="radio" name="new-child-character" checked={characterId === character.id} onChange={() => setCharacterId(character.id)} /><Image src={character.asset} alt="" width={140} height={102} /><span>{character.name} · {character.job}</span></label>)}</fieldset>
             <button className="primary-button" type="button" disabled={saving} onClick={() => void createChild()}>{saving ? "모험가를 부르는 중…" : "모험가 만들기"}</button>
           </div>
         </section>

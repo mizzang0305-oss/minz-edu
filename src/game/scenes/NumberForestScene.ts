@@ -98,6 +98,15 @@ type PlayerVisual = {
   aura: Phaser.GameObjects.Arc;
 };
 
+type FieldEnemyVisual = {
+  id: string;
+  name: string;
+  sprite: Phaser.GameObjects.Image;
+  aura: Phaser.GameObjects.Ellipse;
+  label: Phaser.GameObjects.Text;
+  defeated: boolean;
+};
+
 export class NumberForestScene extends Phaser.Scene {
   private readonly map: ExplorationMapDefinition;
   private players: PlayerVisual[] = [];
@@ -113,6 +122,7 @@ export class NumberForestScene extends Phaser.Scene {
   private portalRing?: Phaser.GameObjects.Ellipse;
   private chest?: Phaser.GameObjects.Image;
   private tokens: Phaser.GameObjects.Container[] = [];
+  private fieldEnemies: FieldEnemyVisual[] = [];
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd?: Record<"left" | "right" | "up" | "down", Phaser.Input.Keyboard.Key>;
   private dashKey?: Phaser.Input.Keyboard.Key;
@@ -142,15 +152,17 @@ export class NumberForestScene extends Phaser.Scene {
   private explorationOnlyObjects: Phaser.GameObjects.GameObject[] = [];
   private compactBattleLayout = false;
   private viewport = { width: ADVENTURE_WORLD_WIDTH, height: ADVENTURE_WORLD_HEIGHT };
+  private readonly heroAsset?: string;
 
-  constructor(stageId: ExplorationStageId = "number-forest") {
+  constructor(stageId: ExplorationStageId = "number-forest", heroAsset?: string) {
     super(`AdventureScene-${stageId}`);
     this.map = getExplorationMap(stageId);
+    this.heroAsset = heroAsset;
   }
 
   preload() {
     this.load.image("stage-background", this.map.visuals.backgroundAsset);
-    this.load.image("hero1", this.map.visuals.heroAsset);
+    this.load.image("hero1", this.heroAsset ?? this.map.visuals.heroAsset);
     this.load.image("hero2", this.map.visuals.friendAsset);
     this.load.image("guardian", this.map.boss.asset);
     this.load.image("treasure-chest", "/game-assets/superpowers-rpg/treasure-chest.png");
@@ -168,6 +180,7 @@ export class NumberForestScene extends Phaser.Scene {
     this.reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     this.cameras.main.roundPixels = true;
     this.cameras.main.setBounds(0, 0, ADVENTURE_WORLD_WIDTH, ADVENTURE_WORLD_HEIGHT);
+    this.cameras.main.setZoom(1.25);
     this.add.image(width / 2, height / 2, "stage-background").setDisplaySize(width, height).setAlpha(0.28);
     this.add.rectangle(width / 2, height / 2, width, height, this.map.visuals.overlayColor, 0.08);
 
@@ -197,6 +210,7 @@ export class NumberForestScene extends Phaser.Scene {
     this.createNpcs();
     this.createPortal();
     this.createBoss();
+    this.createFieldEnemies();
 
     this.cursors = this.input.keyboard?.createCursorKeys();
     if (this.input.keyboard) {
@@ -218,6 +232,7 @@ export class NumberForestScene extends Phaser.Scene {
       gameEventBridge.on("special", (payload) => this.playSpecial(payload.coop, payload.skillName)),
       gameEventBridge.on("move", ({ direction, active }) => active ? this.touchDirections.add(direction) : this.touchDirections.delete(direction)),
       gameEventBridge.on("dash", () => this.activateDash(this.time.now)),
+      gameEventBridge.on("fieldAttack", ({ enemyId }) => this.attackFieldEnemy(enemyId)),
       gameEventBridge.on("interact", ({ npcId }) => this.activateInteraction(npcId)),
       gameEventBridge.on("viewportChanged", (viewport) => {
         this.viewport = viewport;
@@ -242,6 +257,7 @@ export class NumberForestScene extends Phaser.Scene {
       this.bossPhaseText = undefined;
       this.bossTelegraphTween = undefined;
       this.players = [];
+      this.fieldEnemies = [];
       this.explorationOnlyObjects = [];
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
@@ -395,9 +411,19 @@ export class NumberForestScene extends Phaser.Scene {
     );
     const bossReady = this.npcTalked && this.chestOpened && this.collected >= this.tokens.length && this.bridgeCrossed;
     const bossNearby = bossReady && Phaser.Math.Distance.Between(hero.sprite.x, hero.sprite.y, this.map.portal.x, this.map.portal.y) <= PORTAL_REACH_RADIUS + 35;
+    const fieldEnemy = this.fieldEnemies.find((enemy) => !enemy.defeated && Phaser.Math.Distance.Between(hero.sprite.x, hero.sprite.y, enemy.sprite.x, enemy.sprite.y) <= 108);
     let interaction: ExplorationInteraction | null = null;
 
-    if (chestNearby) {
+    if (fieldEnemy) {
+      interaction = this.buildInteraction(
+        fieldEnemy.id,
+        "enemy",
+        `${fieldEnemy.name} 공격하기`,
+        "공격 버튼을 눌러 길을 확보해요",
+        fieldEnemy.sprite.x,
+        fieldEnemy.sprite.y,
+      );
+    } else if (chestNearby) {
       interaction = this.buildInteraction(
         this.map.chest.id,
         "chest",
@@ -512,6 +538,63 @@ export class NumberForestScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(12);
   }
 
+  private createFieldEnemies() {
+    const definitions = [
+      { id: `${this.map.stageId}-field-enemy-1`, name: "연습 수호병", x: Math.round(ADVENTURE_WORLD_WIDTH * 0.39), y: 292, tint: 0x9cecff },
+      { id: `${this.map.stageId}-field-enemy-2`, name: "결계 정찰병", x: Math.round(ADVENTURE_WORLD_WIDTH * 0.68), y: 350, tint: 0xffd66c },
+    ];
+    this.fieldEnemies = definitions.map((enemy, index) => {
+      const aura = this.registerExplorationObject(this.add.ellipse(enemy.x, enemy.y + 18, 70, 42, enemy.tint, 0.18).setStrokeStyle(2, enemy.tint, 0.72).setDepth(12));
+      const sprite = this.registerExplorationObject(this.add.image(enemy.x, enemy.y, "guardian")
+        .setDisplaySize(88, 68)
+        .setTint(enemy.tint)
+        .setDepth(17 + index));
+      const label = this.registerExplorationObject(this.add.text(enemy.x, enemy.y + 45, `⚔ ${enemy.name}`, {
+        fontFamily: "Malgun Gothic, Arial, sans-serif",
+        fontSize: "11px",
+        color: "#fff7c4",
+        fontStyle: "bold",
+        backgroundColor: "#5a251ddd",
+        padding: { x: 7, y: 3 },
+      }).setOrigin(0.5).setDepth(21));
+      return { ...enemy, sprite, aura, label, defeated: false };
+    });
+  }
+
+  private attackFieldEnemy(enemyId: string) {
+    const hero = this.players[0];
+    const enemy = this.fieldEnemies.find((item) => item.id === enemyId && !item.defeated);
+    if (!hero || !enemy || Phaser.Math.Distance.Between(hero.sprite.x, hero.sprite.y, enemy.sprite.x, enemy.sprite.y) > 125) return;
+    enemy.defeated = true;
+    this.nearbyInteractionId = null;
+    gameEventBridge.emit("interactionAvailable", null);
+    const impact = this.add.text(enemy.sprite.x, enemy.sprite.y - 42, "HIT!", {
+      fontFamily: "Arial, sans-serif",
+      fontSize: "26px",
+      color: "#fff1a3",
+      fontStyle: "bold",
+      stroke: "#7c2d12",
+      strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(40);
+    if (this.reducedMotion) {
+      enemy.sprite.setVisible(false);
+      enemy.aura.setVisible(false);
+      enemy.label.setVisible(false);
+      impact.destroy();
+    } else {
+      this.cameras.main.shake(120, 0.003);
+      this.tweens.add({ targets: hero.sprite, x: hero.sprite.x + (hero.sprite.flipX ? -20 : 20), duration: 90, yoyo: true, ease: "Power2" });
+      this.tweens.add({ targets: [enemy.sprite, enemy.aura, enemy.label], x: enemy.sprite.x + (hero.sprite.flipX ? -38 : 38), alpha: 0, angle: 12, duration: 260, ease: "Cubic.easeOut", onComplete: () => {
+        enemy.sprite.setVisible(false);
+        enemy.aura.setVisible(false);
+        enemy.label.setVisible(false);
+      } });
+      this.tweens.add({ targets: impact, y: impact.y - 44, alpha: 0, scale: 1.35, duration: 440, onComplete: () => impact.destroy() });
+    }
+    this.safeSetText(this.statusText, `${enemy.name} 격파! 보스의 봉인은 문제를 풀어야 해제됩니다.`);
+    this.emitProgress();
+  }
+
   private buildPlayer(index: number, state: CoopBattleState) {
     const x = this.map.playerSpawn.x - index * 34;
     const y = this.map.playerSpawn.y + index * 42;
@@ -620,6 +703,9 @@ export class NumberForestScene extends Phaser.Scene {
       npcTalked: this.npcTalked,
       chestOpened: this.chestOpened,
       nextDirection: this.explorationComplete ? "도착" : nextDirection,
+      zonePage: hero && hero.sprite.x >= ADVENTURE_WORLD_WIDTH / 2 ? 2 : 1,
+      fieldEnemiesDefeated: this.fieldEnemies.filter((enemy) => enemy.defeated).length,
+      fieldEnemiesTotal: this.fieldEnemies.length,
     });
   }
 
@@ -674,6 +760,7 @@ export class NumberForestScene extends Phaser.Scene {
     gameEventBridge.emit("interactionAvailable", null);
     this.touchDirections.clear();
     this.cameras.main.stopFollow();
+    this.cameras.main.setZoom(1);
     this.cameras.main.centerOn(ADVENTURE_WORLD_WIDTH / 2, ADVENTURE_WORLD_HEIGHT / 2);
     this.explorationOnlyObjects.forEach((object) => {
       const visual = object as Phaser.GameObjects.GameObject & { setVisible?: (visible: boolean) => unknown };

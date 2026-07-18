@@ -1,8 +1,9 @@
 import type { SchoolLevel } from "./learning";
 import type { StageProgress } from "./progress";
+import type { MisconceptionTag, MisconceptionTagCounts } from "@/learning/misconceptionTags";
 
 export type AcademicSemester = 1 | 2;
-export type CurriculumSubject = "math" | "korean";
+export type CurriculumSubject = "math" | "korean" | "english";
 export type LearningGoalStatus = "ready" | "in-progress" | "mastered" | "needs-practice";
 
 export type PracticeQuestion = {
@@ -11,6 +12,14 @@ export type PracticeQuestion = {
   choices: string[];
   answer: string;
   hint: string;
+  explanation?: string;
+  misconceptionTag?: MisconceptionTag;
+  review?: {
+    status: "pending-teacher-review" | "teacher-approved" | "changes-requested";
+    curriculumReference: string;
+    reviewedBy?: string;
+    reviewedAt?: string;
+  };
 };
 
 export type WeeklyLearningGoal = {
@@ -50,4 +59,6 @@ export type TrainingAttemptRecord = {
   retryCount: number;
   hintCount: number;
   passed: boolean;
+  durationSeconds?: number;
+  misconceptionTagCounts?: MisconceptionTagCounts;
 };

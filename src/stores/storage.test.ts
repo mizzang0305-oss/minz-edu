@@ -51,12 +51,12 @@ describe("versioned local storage", () => {
     expect(parseStoredGameData(JSON.stringify({ version: 99 }))).toEqual(createDefaultGameData());
   });
 
-  it("v1 데이터를 잃지 않고 v5 주별 목표 스키마로 옮긴다", () => {
+  it("v1 데이터를 잃지 않고 v6 장비·세션 스키마로 옮긴다", () => {
     const migrated = parseStoredGameData(JSON.stringify({
       version: 1,
       inventory: { coins: 42, badges: ["용기 배지"] },
     }));
-    expect(migrated.version).toBe(5);
+    expect(migrated.version).toBe(6);
     expect(migrated.stageProgress["number-forest"].status).toBe("available");
     expect(migrated.playerProfile).toMatchObject({ schoolLevel: "elementary", grade: 2 });
     expect(migrated.inventory.coins).toBe(42);
@@ -68,10 +68,19 @@ describe("versioned local storage", () => {
     const settings = { ...createDefaultGameData().parentSettings, mode: "local-shared-screen" as const, friendName: "하람" };
     saveSettings(settings);
     const stored = readGameData();
-    expect(stored.version).toBe(5);
+    expect(stored.version).toBe(6);
     expect(stored.friendProfiles[0].displayName).toBe("하람");
     expect(stored.friendProfiles[0].schoolLevel).toBe("elementary");
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").localCoopSettings.enabled).toBe(true);
+  });
+
+  it("캐릭터를 바꾸면 그 캐릭터의 기본 스킬을 실제 전투 목록에 해금한다", () => {
+    const settings = { ...createDefaultGameData().parentSettings, characterId: "flame-mage" as const, selectedSkillId: "flame-burst" as const };
+    saveSettings(settings);
+    const stored = readGameData();
+    expect(stored.playerProfile.characterId).toBe("flame-mage");
+    expect(stored.inventory.unlockedSkillIds).toContain("flame-burst");
+    expect(stored.inventory.ownedItemIds).toContain("flame-burst");
   });
 
   it("중앙 저장 시 동기화 이벤트를 보내고 원격 병합 저장은 다시 보내지 않는다", () => {
@@ -82,7 +91,7 @@ describe("versioned local storage", () => {
     expect(events).toBe(1);
   });
 
-  it("유아 단계를 보존하고 이전 중등 저장값은 초등으로 옮긴다", () => {
+  it("유아와 중등 학습 단계를 그대로 보존한다", () => {
     const settings = { ...createDefaultGameData().parentSettings, schoolLevel: "kindergarten" as const, grade: 6, friendSchoolLevel: "kindergarten" as const, friendGrade: 5, mode: "local-shared-screen" as const };
     saveSettings(settings);
     const stored = readGameData();
@@ -90,9 +99,9 @@ describe("versioned local storage", () => {
     expect(stored.friendProfiles[0]).toMatchObject({ schoolLevel: "kindergarten", grade: 5 });
 
     const migrated = parseStoredGameData(JSON.stringify({ version: 5, parentSettings: { schoolLevel: "middle", grade: 3 }, playerProfile: { schoolLevel: "middle", grade: 2 } }));
-    expect(migrated.parentSettings).toMatchObject({ schoolLevel: "elementary", grade: 3 });
-    expect(migrated.playerProfile).toMatchObject({ schoolLevel: "elementary", grade: 2 });
-    expect(migrated.parentSettings.selectedLearningGoalId).toBe("elementary-3-s2-math-w8");
+    expect(migrated.parentSettings).toMatchObject({ schoolLevel: "middle", grade: 3 });
+    expect(migrated.playerProfile).toMatchObject({ schoolLevel: "middle", grade: 2 });
+    expect(migrated.parentSettings.selectedLearningGoalId).toBe("middle-3-s2-math-w8");
   });
 
   it("협동 보상과 이력을 같은 기록으로 보존한다", () => {
@@ -191,7 +200,8 @@ describe("versioned local storage", () => {
       teamRewards: null,
       stageProgress: { "number-forest": { status: "wrong", completedQuestIds: null } },
     }));
-    expect(migrated.inventory).toEqual({ coins: 0, badges: [] });
+    expect(migrated.inventory).toMatchObject({ coins: 0, badges: [], equippedWeaponId: "training-sword" });
+    expect(migrated.inventory.ownedItemIds).toEqual(expect.arrayContaining(["training-sword", "thunder-strike"]));
     expect(migrated.playHistory).toEqual([]);
     expect(migrated.rewardHistory).toEqual([]);
     expect(migrated.friendProfiles).toEqual([]);

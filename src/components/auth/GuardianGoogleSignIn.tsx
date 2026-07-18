@@ -15,6 +15,22 @@ type Props = {
 
 type LoginState = "idle" | "checking" | "exchanging" | "error";
 
+export function guardianLoginErrorMessage(error: unknown) {
+  const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+  const messages: Record<string, string> = {
+    "auth/unauthorized-domain": "현재 주소가 Firebase의 승인된 도메인에 등록되지 않았습니다. 보호자에게 알려 설정을 확인해 주세요.",
+    "auth/popup-closed-by-user": "Google 로그인 창이 닫혔습니다. 다시 눌러 로그인을 완료해 주세요.",
+    "auth/cancelled-popup-request": "로그인 창을 하나만 열어 주세요. 잠시 후 다시 시도해 주세요.",
+    "auth/network-request-failed": "인터넷 연결이 불안정합니다. 연결을 확인한 뒤 다시 시도해 주세요.",
+    "auth/web-storage-unsupported": "이 브라우저의 저장 기능이 차단되어 있습니다. 일반 모드에서 다시 열어 주세요.",
+    "auth/operation-not-allowed": "Google 로그인이 Firebase에서 활성화되지 않았습니다. 보호자 설정 확인이 필요합니다.",
+    "auth/internal-error": "Firebase 로그인 처리 중 일시적인 오류가 났습니다. 창을 새로고침한 뒤 다시 시도해 주세요.",
+  };
+  return messages[code] ?? (error instanceof Error && !error.message.startsWith("Firebase:")
+    ? error.message
+    : "Google 로그인을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+}
+
 async function exchangeForServerSession(idToken: string) {
   const csrfResponse = await fetch("/api/auth/csrf", {
     cache: "no-store",
@@ -57,7 +73,7 @@ export function GuardianGoogleSignIn({ configured }: Props) {
         window.location.assign("/parent");
       } catch (error) {
         if (!active) return;
-        setMessage(error instanceof Error ? error.message : "Google 로그인을 완료하지 못했습니다.");
+        setMessage(guardianLoginErrorMessage(error));
         setState("error");
       }
     })();
@@ -91,7 +107,7 @@ export function GuardianGoogleSignIn({ configured }: Props) {
         await signInWithRedirect(auth, provider);
         return;
       }
-      setMessage(error instanceof Error ? error.message : "Google 로그인을 시작하지 못했습니다.");
+      setMessage(guardianLoginErrorMessage(error));
       setState("error");
     }
   }

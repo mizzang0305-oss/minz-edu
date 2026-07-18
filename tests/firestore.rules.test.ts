@@ -96,12 +96,12 @@ describe("Firestore guardian boundaries", () => {
     );
   });
 
-  it("accepts valid early-childhood and elementary stages and rejects middle school", async () => {
+  it("accepts valid early-childhood, elementary, and middle school stages", async () => {
     const ownerDb = testEnv.authenticatedContext("guardian-a").firestore();
     const base = { characterId: "thunder-sword", friendCode: "ABCD2345", createdAt: 1, updatedAt: 1 };
     await assertSucceeds(setDoc(doc(ownerDb, "guardians/guardian-a/children/kind"), { ...base, displayName: "유아", schoolLevel: "kindergarten", grade: 6 }));
     await assertSucceeds(setDoc(doc(ownerDb, "guardians/guardian-a/children/elementary"), { ...base, displayName: "초등학생", schoolLevel: "elementary", grade: 3 }));
-    await assertFails(setDoc(doc(ownerDb, "guardians/guardian-a/children/middle"), { ...base, displayName: "중학생", schoolLevel: "middle", grade: 3 }));
+    await assertSucceeds(setDoc(doc(ownerDb, "guardians/guardian-a/children/middle"), { ...base, displayName: "중학생", schoolLevel: "middle", grade: 3 }));
   });
 
   it("keeps immutable child identity fields and rejects unsafe character ids", async () => {
@@ -149,7 +149,7 @@ describe("Firestore guardian boundaries", () => {
 });
 
 describe("Firestore authoritative room boundaries", () => {
-  it("allows a safe initial room but blocks client state mutation", async () => {
+  it("allows member reads but blocks all client room and command mutation", async () => {
     const guardianDb = testEnv.authenticatedContext("guardian-a").firestore();
     const roomRef = doc(guardianDb, "rooms/room-a");
     await assertFails(
@@ -175,7 +175,7 @@ describe("Firestore authoritative room boundaries", () => {
 
     await assertSucceeds(getDoc(roomRef));
     await assertFails(updateDoc(roomRef, { bossHp: 0, revision: 1 }));
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(guardianDb, "rooms/room-a/commands/event-1"), {
         eventId: "event-1",
         playerId: "minz",
@@ -219,7 +219,28 @@ describe("Firestore authoritative room boundaries", () => {
     );
   });
 
-  it("rejects oversized or malformed command envelopes", async () => {
+  it("blocks members from bypassing the server command endpoint", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "rooms/room-a"), {
+        guardianUids: ["guardian-a"],
+        expiresAt: Timestamp.fromMillis(Date.now() + 60_000),
+      });
+    });
+    const guardianDb = testEnv.authenticatedContext("guardian-a").firestore();
+
+    await assertFails(
+      setDoc(doc(guardianDb, "rooms/room-a/commands/event-1"), {
+        eventId: "event-1",
+        playerId: "minz",
+        expectedRevision: 0,
+        type: "ANSWER_SUBMIT",
+        payload: { choice: "raw-answer" },
+        clientTimestamp: 1,
+      }),
+    );
+  });
+
+  it("rejects direct command envelopes regardless of their shape", async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "rooms/room-a"), {
         guardianUids: ["guardian-a"],

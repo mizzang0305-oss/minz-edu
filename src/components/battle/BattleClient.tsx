@@ -10,8 +10,8 @@ import { GaugePanel } from "./GaugePanel";
 import { BattleMomentumHUD } from "./BattleMomentumHUD";
 import { battleModeFromPlayers, battleReducer, createBattleState, resolveBattleSelection, supportsTenFrame } from "@/game/systems/CombatSystem";
 import { buildCorrectFeedback, buildHintFeedback, buildRetryFeedback } from "@/game/systems/LearningFeedback";
-import { DEFAULT_SETTINGS, readGameData, saveAdventure } from "@/stores/storage";
-import type { AdventureRecord } from "@/types/progress";
+import { DEFAULT_SETTINGS, createDefaultGameData, readGameData, saveAdventure, saveSessionReport, selectBattleSkill } from "@/stores/storage";
+import type { AdventureRecord, StoredGameData } from "@/types/progress";
 import type { PracticeQuestion, WeeklyLearningGoal } from "@/types/curriculum";
 import { playBattleTone, speakBattleLine } from "@/utils/audioFeedback";
 import { getLearningBattleProfile } from "@/learning/stages";
@@ -20,6 +20,9 @@ import { getExplorationMap } from "@/game/maps/mapRegistry";
 import { withJosa } from "@/utils/koreanText";
 import type { BossAttackSignal } from "@/types/battle";
 import { getBossAttackWarningProfile } from "@/game/systems/BossAttackTiming";
+import { getSkill } from "@/types/loadout";
+import type { SkillId } from "@/types/loadout";
+import { incrementMisconceptionTag, type MisconceptionTagCounts } from "@/learning/misconceptionTags";
 
 const supportiveMessages = ["그림 힌트 보내기", "한 단계 나누기", "내 방법 설명하기", "응원 보내기"];
 const BOSS_QUESTION_PHASES = ["PLAYER_MANIPULATE", "PLAYER_ANSWER", "SPECIAL_CHALLENGE"] as const;
@@ -29,6 +32,12 @@ type BossWarningState = {
   secondsLeft: number;
   paceLabel: string;
   incoming: boolean;
+};
+
+type PendingStrike = {
+  playerIndex: number;
+  missionId: string;
+  action: "manipulation" | "answer" | "special";
 };
 
 export function BattleClient() {
@@ -43,18 +52,26 @@ export function BattleClient() {
   const [learningGoal, setLearningGoal] = useState<WeeklyLearningGoal | null>(null);
   const [learningFeedback, setLearningFeedback] = useState<ReturnType<typeof buildCorrectFeedback> | null>(null);
   const [bossWarning, setBossWarning] = useState<BossWarningState | null>(null);
+  const [gameData, setGameData] = useState<StoredGameData>(createDefaultGameData());
+  const [pendingStrike, setPendingStrike] = useState<PendingStrike | null>(null);
+  const [misconceptionTagCounts, setMisconceptionTagCounts] = useState<MisconceptionTagCounts>({});
   const savedRef = useRef(false);
   const attackCounterRef = useRef(0);
   const bossAttackCounterRef = useRef(0);
   const specialCounterRef = useRef(0);
   const counterAttackTimersRef = useRef<number[]>([]);
   const bossWarningHandledRef = useRef(false);
+  const startedAtRef = useRef(0);
+  const sessionIdRef = useRef("");
 
   const dispatch = useCallback((action: Parameters<typeof battleReducer>[1]) => setBattle((current) => battleReducer(current, action)), []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const stored = readGameData();
+      setGameData(stored);
+      startedAtRef.current = Date.now();
+      sessionIdRef.current = `battle-session-${startedAtRef.current}`;
       const params = new URLSearchParams(window.location.search);
       const requestedStage = params.get("stage");
       const qaCombat = process.env.NODE_ENV === "development" && params.get("qa") === "combat";
@@ -63,8 +80,9 @@ export function BattleClient() {
       const resolvedStage = selection.stageId;
       const encounter = getExplorationMap(resolvedStage).boss;
       const initialBattle = createBattleState(stored.parentSettings);
+      const armorBonus = stored.inventory.equippedArmorId ? 10 : 0;
       const bossMaxHp = 90 + encounter.threatTier * 45;
-      setBattle({ ...initialBattle, battlePhase: qaCombat ? "PLAYER_MANIPULATE" : "INTRO", bossHp: bossMaxHp, bossMaxHp, bossShield: encounter.threatTier === 1 ? 10 : encounter.threatTier === 2 ? 25 : 40, message: qaCombat ? `${initialBattle.players[0].displayName} 차례 · ${selection.goal.unitTitle} 첫 번째 결계를 열어 보자!` : `${withJosa(encounter.name, "이", "가")} 학습 길을 헷갈리게 만들었어!` });
+      setBattle({ ...initialBattle, players: initialBattle.players.map((player, index) => index === 0 ? { ...player, shield: player.shield + armorBonus } : player), battlePhase: qaCombat ? "PLAYER_MANIPULATE" : "INTRO", bossHp: bossMaxHp, bossMaxHp, bossShield: encounter.threatTier === 1 ? 10 : encounter.threatTier === 2 ? 25 : 40, message: qaCombat ? `${initialBattle.players[0].displayName} 차례 · ${selection.goal.unitTitle} 첫 번째 결계를 열어 보자!` : `${withJosa(encounter.name, "이", "가")} 학습 길을 헷갈리게 만들었어!` });
       setLearningGoal(selection.goal);
       setStageId(resolvedStage);
       setHydrated(true);
@@ -165,6 +183,36 @@ export function BattleClient() {
   }, [learningFeedback]);
 
   useEffect(() => {
+    const saveInterruptedSession = () => {
+      if (!learningGoal || savedRef.current || battle.battlePhase === "RESULT") return;
+      const questionActive = BOSS_QUESTION_PHASES.some((phase) => phase === battle.battlePhase);
+      const questionCount = battle.completedMissionIds.length + (questionActive ? 1 : 0);
+      if (questionCount < 1) return;
+      const pendingCorrect = pendingStrike ? 1 : 0;
+      saveSessionReport({
+        id: sessionIdRef.current,
+        source: "battle",
+        goalId: learningGoal.id,
+        goalTitle: `${learningGoal.unitTitle} · ${learningGoal.title}`,
+        learningObjective: learningGoal.objective,
+        startedAt: new Date(startedAtRef.current).toISOString(),
+        completedAt: new Date().toISOString(),
+        durationSeconds: Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)),
+        questionCount,
+        correctCount: battle.completedMissionIds.length + pendingCorrect,
+        firstTryCorrect: battle.firstTryCorrectCount + (pendingCorrect && !battle.currentQuestionRetried && !battle.currentQuestionHintUsed ? 1 : 0),
+        retryCount: battle.retryCount,
+        hintCount: battle.hintCount,
+        weakSkillTag: battle.retryCount > 0 || battle.hintCount > 0 ? learningGoal.skillTag : undefined,
+        ...(Object.keys(misconceptionTagCounts).length > 0 ? { misconceptionTagCounts } : {}),
+        deliveryStatus: "pending",
+      });
+    };
+    window.addEventListener("pagehide", saveInterruptedSession);
+    return () => window.removeEventListener("pagehide", saveInterruptedSession);
+  }, [battle, learningGoal, misconceptionTagCounts, pendingStrike]);
+
+  useEffect(() => {
     if (battle.battlePhase !== "RESULT" || savedRef.current || !learningGoal) return;
     savedRef.current = true;
     const coop = battle.players.length === 2;
@@ -178,7 +226,7 @@ export function BattleClient() {
       firstTryCorrect: battle.firstTryCorrectCount,
       retryCount: battle.retryCount,
       hintCount: battle.hintCount,
-      specialSkill: coop ? "민즈 트윈 드래곤 브레이크" : "민즈 썬더 드래곤 브레이크",
+      specialSkill: coop ? "민즈 트윈 드래곤 브레이크" : getSkill(gameData.parentSettings.selectedSkillId).name,
       coins: coop ? 60 : 35,
       badges: [`${stageMap.collectionLabel} 수호 배지`, ...(battle.retryCount > 0 ? ["다시 도전 용기 배지"] : [])],
       teamRewards: coop ? ["우정 코인", "합동 스킬 조각", `${stageMap.boss.name} 우정 트로피`] : [],
@@ -187,9 +235,11 @@ export function BattleClient() {
       mapId: stageMap.id,
       completedQuestIds: [`meet-${stageMap.npcs[0].id}`, `open-${stageMap.chest.id}`, `collect-${stageMap.collectibles.length}`, `cross-${stageMap.bridge.id}`, `meet-${stageMap.boss.id}`],
       learningGoalId: learningGoal.id,
+      durationSeconds: Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)),
     };
     saveAdventure(record);
-  }, [battle, learningGoal, stageId]);
+    saveSessionReport({ id: sessionIdRef.current, source: "battle", goalId: learningGoal.id, goalTitle: `${learningGoal.unitTitle} · ${learningGoal.title}`, learningObjective: learningGoal.objective, startedAt: new Date(startedAtRef.current).toISOString(), completedAt: record.completedAt, durationSeconds: record.durationSeconds ?? 1, questionCount: Math.max(1, battle.completedMissionIds.length), correctCount: battle.completedMissionIds.length, firstTryCorrect: battle.firstTryCorrectCount, retryCount: battle.retryCount, hintCount: battle.hintCount, weakSkillTag: battle.retryCount > 0 || battle.hintCount > 0 ? learningGoal.skillTag : undefined, ...(Object.keys(misconceptionTagCounts).length > 0 ? { misconceptionTagCounts } : {}), deliveryStatus: "pending" });
+  }, [battle, gameData.parentSettings.selectedSkillId, learningGoal, misconceptionTagCounts, stageId]);
 
   const attack = (playerIndex: number, kind: "strong" | "magic") => {
     attackCounterRef.current += 1;
@@ -238,8 +288,10 @@ export function BattleClient() {
       ? `${stageMap.boss.attackName} 준비 ${activeBossWarning.secondsLeft}초 · ${activeQuestionPrompt}`
       : `${stageMap.boss.attackName} 접근 · ${activeQuestionPrompt}`
     : null;
+  const questionScreenActive = BOSS_QUESTION_PHASES.some((phase) => phase === battle.battlePhase) && !pendingStrike;
 
   const showRetry = (question: PracticeQuestion) => {
+    setMisconceptionTagCounts((counts) => incrementMisconceptionTag(counts, question.misconceptionTag));
     bossWarningHandledRef.current = true;
     setBossWarning((current) => current && current.targetPlayerIndex === battle.activePlayerIndex
       ? { ...current, secondsLeft: 0, incoming: true }
@@ -260,8 +312,26 @@ export function BattleClient() {
       return;
     }
     setLearningFeedback(buildCorrectFeedback(question, battle.currentQuestionRetried || battle.currentQuestionHintUsed));
-    dodgeAndCounter(battle.activePlayerIndex, deep ? "magic" : battle.activePlayerIndex === 0 ? "strong" : "magic");
-    dispatch(deep ? { type: "SPECIAL_CHALLENGE_SUCCESS", missionId } : { type: "ANSWER_SUCCESS", missionId });
+    bossWarningHandledRef.current = true;
+    setPendingStrike({ playerIndex: battle.activePlayerIndex, missionId, action: deep ? "special" : "answer" });
+  };
+
+  const prepareOpeningStrike = (question: PracticeQuestion, missionId: string) => {
+    setLearningFeedback(buildCorrectFeedback(question, battle.currentQuestionRetried || battle.currentQuestionHintUsed));
+    bossWarningHandledRef.current = true;
+    setPendingStrike({ playerIndex: 0, missionId, action: "manipulation" });
+  };
+
+  const performSelectedSkill = (skillId: SkillId) => {
+    if (!pendingStrike) return;
+    const selected = selectBattleSkill(skillId);
+    setGameData(selected);
+    const kind = skillId === "flame-burst" ? "magic" : "strong";
+    dodgeAndCounter(pendingStrike.playerIndex, kind);
+    if (pendingStrike.action === "special") dispatch({ type: "SPECIAL_CHALLENGE_SUCCESS", missionId: pendingStrike.missionId });
+    else if (pendingStrike.action === "manipulation") dispatch({ type: "MANIPULATION_SUCCESS", missionId: pendingStrike.missionId });
+    else dispatch({ type: "ANSWER_SUCCESS", missionId: pendingStrike.missionId });
+    setPendingStrike(null);
   };
 
   const pressReady = (index: number) => {
@@ -278,7 +348,7 @@ export function BattleClient() {
   };
 
   return (
-    <main className={combatActive ? "battle-page combat-mode" : "battle-page explore-mode"}>
+    <main className={combatActive ? `battle-page combat-mode ${questionScreenActive ? "question-mode" : "skill-mode"}` : "battle-page explore-mode"}>
       <AdventureProgress current="battle" />
       <div className="battle-topline"><div><span className="eyebrow">{primaryProfile.stageLabel} · 위협도 {stageMap.boss.threatTier}</span><h1>{battle.players.length === 2 ? `둘의 힘으로 ${stageMap.boss.name}의 혼란을 풀어라` : `${stageMap.boss.name} 상대 학습 작전을 시작하자`}</h1></div><Link className="quiet-link" href="/world">모험 지도</Link></div>
       <div className={combatActive ? "battle-layout is-combat" : "battle-layout is-exploring"}>
@@ -287,6 +357,7 @@ export function BattleClient() {
             <PhaserStage
               stageId={stageId}
               battle={battle}
+              characterId={gameData.playerProfile.characterId}
               attackSignal={attackSignal}
               bossAttackSignal={bossAttackSignal}
               specialSignal={specialSignal}
@@ -297,9 +368,10 @@ export function BattleClient() {
             {combatActive && <BattleMomentumHUD battle={battle} />}
             <div className={combatActive ? "battle-overlay-dock is-combat" : "battle-overlay-dock"}>
               <div className={learningFeedback ? "battle-message has-feedback" : "battle-message"} role="status" aria-live="polite"><span className="guide-avatar">{incomingAttackPrompt ? "🛡️" : "⚡"}</span><div className="battle-message-copy"><strong>{incomingAttackPrompt ?? battle.message}</strong>{learningFeedback ? <small>{learningFeedback.title} {learningFeedback.explanation}</small> : incomingAttackPrompt ? <small>{activeBossWarning && !activeBossWarning.incoming ? `${activeBossWarning.paceLabel} · ` : ""}정답이면 자동 회피 후 반격! 오답이면 보호막이 공격을 받아요.</small> : null}</div></div>
-              {combatActive && <section className="mission-panel battle-command-console" data-testid="battle-command-console" aria-label="전투 학습 명령">
+              {pendingStrike && <section className="battle-skill-selector" aria-label="정답 공격 스킬 선택"><span className="mission-kind">정답 확인 · 공격 차례</span><h2>어떤 스킬로 반격할까?</h2><p>{learningFeedback?.explanation}</p><div>{gameData.inventory.unlockedSkillIds.map((skillId) => { const skill = getSkill(skillId); return <button key={skillId} type="button" onClick={() => performSelectedSkill(skillId)}><strong>{skill.name}</strong><small>{skill.description}</small></button>; })}</div></section>}
+              {combatActive && !pendingStrike && <section className="mission-panel battle-command-console" data-testid="battle-command-console" aria-label="전투 학습 명령">
             <div className="battle-mission-steps" aria-label={`학습 결계 ${Math.min(3, battle.completedMissionIds.length)}/3 완료`}><span className={battle.completedMissionIds.length >= 1 ? "done" : "current"}>발견</span><span className={battle.completedMissionIds.length >= 2 ? "done" : battle.completedMissionIds.length === 1 ? "current" : ""}>연결</span><span className={battle.completedMissionIds.length >= 3 ? "done" : battle.completedMissionIds.length === 2 ? "current" : ""}>마무리</span></div>
-            {battle.battlePhase === "PLAYER_MANIPULATE" && (openingMission.kind === "blocks" ? <TenFrame {...openingMission} onComplete={() => { setLearningFeedback(buildCorrectFeedback(stageQuestions[0], battle.currentQuestionRetried || battle.currentQuestionHintUsed)); dodgeAndCounter(0, "strong"); dispatch({ type: "MANIPULATION_SUCCESS", missionId: stageQuestions[0].id }); }} /> : <div className="choice-mission"><span className="mission-kind">{openingMission.title}</span><h2>{openingMission.prompt}</h2><p>{openingMission.copy}</p><div className="choice-grid">{openingMission.choices.map((choice) => <button key={choice} onClick={() => { if (choice !== openingAnswer) { showRetry(stageQuestions[0]); return; } setLearningFeedback(buildCorrectFeedback(stageQuestions[0], battle.currentQuestionRetried || battle.currentQuestionHintUsed)); dodgeAndCounter(0, "strong"); dispatch({ type: "MANIPULATION_SUCCESS", missionId: stageQuestions[0].id }); }}>{choice}</button>)}</div></div>)}
+            {battle.battlePhase === "PLAYER_MANIPULATE" && (openingMission.kind === "blocks" ? <TenFrame {...openingMission} onComplete={() => prepareOpeningStrike(stageQuestions[0], stageQuestions[0].id)} /> : <div className="choice-mission"><span className="mission-kind">{openingMission.title}</span><h2>{openingMission.prompt}</h2><p>{openingMission.copy}</p><div className="choice-grid">{openingMission.choices.map((choice) => <button key={choice} onClick={() => { if (choice !== openingAnswer) { showRetry(stageQuestions[0]); return; } prepareOpeningStrike(stageQuestions[0], stageQuestions[0].id); }}>{choice}</button>)}</div></div>)}
             {battle.battlePhase === "PLAYER_ANSWER" && <div className="choice-mission"><span className="mission-kind">{answerPrompt.title}</span><h2>{answerPrompt.prompt}</h2><p>{answerPrompt.copy}</p><div className="choice-grid">{answerPrompt.choices.map((choice) => <button key={choice} onClick={() => chooseAnswer(choice, stageQuestions[1], stageQuestions[1].id)}>{choice}</button>)}</div><div className="help-row">{supportiveMessages.slice(0, battle.players.length === 2 ? 4 : 2).map((message) => <button type="button" key={message} onClick={() => showHint(stageQuestions[1])}>{message}</button>)}</div></div>}
             {battle.battlePhase === "SPECIAL_CHALLENGE" && <div className="choice-mission deep"><span className="mission-kind">{battle.players.length === 2 ? "함께 작전 세우기" : "스페셜 작전"}</span><h2>{deepMission.prompt}</h2><p>{deepMission.copy}</p><div className="choice-grid vertical">{deepMission.choices.map((choice) => <button key={choice} onClick={() => chooseAnswer(choice, stageQuestions[2], stageQuestions[2].id, true)}>{choice}</button>)}</div><button className="hint-button" onClick={() => showHint(stageQuestions[2])}>작전 힌트 보기</button></div>}
             {battle.battlePhase === "SPECIAL_READY" && <div className="special-ready"><span className="mission-kind">필살기 준비</span><h2>{battle.players.length === 2 ? "민즈 트윈 드래곤 브레이크" : "민즈 썬더 드래곤 브레이크"}</h2><p>{battle.players.length === 2 ? `두 준비 버튼을 ${secondsLeft}초 안에 모두 눌러 줘. 시간이 지나도 다시 할 수 있어.` : "준비 버튼을 누르면 번개 드래곤이 나타나!"}</p><div className={battle.players.length === 2 ? "ready-buttons" : "ready-buttons solo"}>{battle.players.map((player, index) => <button key={player.id} className={player.ready ? "ready-button pressed" : `ready-button player-${index + 1}`} disabled={player.ready} onClick={() => pressReady(index)}><span>{player.ready ? "준비 완료" : `${player.displayName} 준비`}</span><small>{index === 0 ? "번개 힘" : "불꽃 힘"}</small></button>)}</div>{readyCountdownActive && battle.players.some((player) => !player.ready) && <div className="countdown" aria-live="polite">함께 누를 시간 {secondsLeft}</div>}</div>}

@@ -1,4 +1,4 @@
-export type SchoolLevel = "kindergarten" | "elementary";
+export type SchoolLevel = "kindergarten" | "elementary" | "middle";
 
 export type LearningStage = {
   schoolLevel: SchoolLevel;
