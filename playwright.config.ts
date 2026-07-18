@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const playwrightPort = process.env.PLAYWRIGHT_PORT ?? "3000";
 const playwrightBaseUrl = `http://127.0.0.1:${playwrightPort}`;
+const useDevelopmentServer = process.env.PLAYWRIGHT_DEV_SERVER === "1";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -15,10 +16,12 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: `npm run dev -- --port ${playwrightPort}`,
+    command: useDevelopmentServer
+      ? `npm run dev -- --port ${playwrightPort}`
+      : `npm run build && npm run start -- --port ${playwrightPort}`,
     url: playwrightBaseUrl,
-    reuseExistingServer: true,
-    timeout: 120_000,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",
+    timeout: 180_000,
   },
   projects: [
     { name: "chromium", testIgnore: /mobile-compat\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },

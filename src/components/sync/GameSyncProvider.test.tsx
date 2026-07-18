@@ -15,8 +15,37 @@ describe("GameSyncProvider", () => {
       Response.json({ authenticated: false }),
     ));
     render(<GameSyncProvider><StatusProbe /></GameSyncProvider>);
-    expect(screen.getByText("모험 기록을 준비하고 있어요")).toBeInTheDocument();
+    expect(screen.getByTestId("sync-status")).toHaveTextContent("checking");
     expect(await screen.findByTestId("sync-status")).toHaveTextContent("local");
+  });
+
+  it("renders the game immediately while the guardian session is still being checked", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+
+    render(
+      <GameSyncProvider>
+        <div>바로 시작하는 모험</div>
+        <StatusProbe />
+      </GameSyncProvider>,
+    );
+
+    expect(screen.getByText("바로 시작하는 모험")).toBeVisible();
+    expect(screen.getByTestId("sync-status")).toHaveTextContent("checking");
+  });
+
+  it("falls back quietly when the optional online session endpoint is unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(null, { status: 404 }),
+    ));
+
+    render(
+      <GameSyncProvider>
+        <StatusProbe />
+      </GameSyncProvider>,
+    );
+
+    expect(await screen.findByTestId("sync-status")).toHaveTextContent("local");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("keeps the active child local while offline and resumes remote sync after reconnecting", async () => {
