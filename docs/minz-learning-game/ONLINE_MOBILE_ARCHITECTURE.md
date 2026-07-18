@@ -62,8 +62,8 @@ rooms/{roomId}
 1. **Phase 11-A (완료)**: 모바일 viewport/safe-area/PWA manifest, Google 보호자 로그인 세션 기반, 온라인 타입과 방 코드 검증
 2. **Phase 11-B (부분 완료)**: Firebase 개발 프로젝트, Emulator Suite, Firestore 규칙, 로컬 기본 자녀 프로필의 보호자 계정 동기화 완료. 다중 자녀 CRUD 대기
 3. **Phase 11-C (완료)**: 서버 권한 방 생성, 6자리 코드 참가, 2인 제한, 30분 만료, Firestore 실시간 로비, 20초 presence heartbeat와 60초 재접속 보호, revision 기반 준비·턴 교대·정답·도움·팀 필살기·보상 동기화
-4. **Phase 11-D**: 실제 휴대폰 2대/태블릿 조합 테스트, App Check 모니터링 후 적용
+4. **Phase 11-D (진행 중)**: App Check SDK 모니터링 preflight와 fail-open 회귀 테스트 완료. 실제 휴대폰 2대의 지연·앱 전환 검증, reCAPTCHA Enterprise 사이트 키 승인·등록, staging/production 측정항목 확인 대기
 
 ## 운영 승인 필요 항목
 
-Firebase 프로젝트 `studymate-ai-v2`의 서울 리전 Firestore를 온라인 데이터 대상으로 사용한다. 방 생성·참가·presence heartbeat는 Next.js 서버 Route Handler의 Admin SDK가 처리하고 클라이언트는 참가한 방만 읽는다. 로컬 Web 설정은 프로젝트의 기존 `studymate-web` 앱을 사용하며, Admin 키는 반드시 같은 프로젝트의 키만 허용한다. 개발 검증용 `localhost`와 `127.0.0.1`은 Firebase Authentication 승인 도메인에 등록됐다. Functions 배포, 운영 도메인 등록, App Check enforcement 활성화는 아직 진행하지 않았다.
+Firebase 프로젝트 `studymate-ai-v2`의 서울 리전 Firestore를 온라인 데이터 대상으로 사용한다. 방 생성·참가·presence heartbeat는 Next.js 서버 Route Handler의 Admin SDK가 처리하고 클라이언트는 참가한 방만 읽는다. 로컬 Web 설정은 프로젝트의 기존 `studymate-web` 앱을 사용하며, Admin 키는 반드시 같은 프로젝트의 키만 허용한다. 개발 검증용 `localhost`와 `127.0.0.1`은 Firebase Authentication 승인 도메인에 등록됐다. Functions 배포, 운영 도메인 등록, App Check enforcement 활성화는 아직 진행하지 않았다. App Check SDK는 `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY`가 있을 때만 Auth·Firestore보다 먼저 초기화되고, Emulator와 미설정 환경에서는 건너뛴다. Firebase Console의 Cloud Firestore 상태는 `적용되지 않음`을 유지하며, production enforcement는 별도 승인 없이는 켜지 않는다.
