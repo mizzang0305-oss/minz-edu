@@ -17,6 +17,23 @@ const PORTAL_REACH_RADIUS = 100;
 type MovementPoint = { x: number; y: number };
 type MovementBounds = { minX: number; maxX: number; minY: number; maxY: number };
 type BossPhase = "shield" | "open" | "final" | "friend";
+type BossAttackShape = "seed" | "fang" | "wave";
+
+export function resolveBossAttackPresentation(threatTier: 1 | 2 | 3) {
+  const presentations: Record<1 | 2 | 3, {
+    shape: BossAttackShape;
+    telegraphColor: number;
+    calloutColor: string;
+    dodgeColor: number;
+    hitColor: number;
+    strokeColor: number;
+  }> = {
+    1: { shape: "seed", telegraphColor: 0xffc857, calloutColor: "#ffe89a", dodgeColor: 0xffd45c, hitColor: 0xff765f, strokeColor: 0xfff4c4 },
+    2: { shape: "fang", telegraphColor: 0xc084fc, calloutColor: "#f5d0fe", dodgeColor: 0xe9d5ff, hitColor: 0xa855f7, strokeColor: 0xfdf4ff },
+    3: { shape: "wave", telegraphColor: 0xfb7185, calloutColor: "#ffe4e6", dodgeColor: 0xfda4af, hitColor: 0xe11d48, strokeColor: 0xfff1f2 },
+  };
+  return presentations[threatTier];
+}
 
 export function resolveBossPhasePresentation(
   threatTier: 1 | 2 | 3,
@@ -747,6 +764,25 @@ export class NumberForestScene extends Phaser.Scene {
     if (!this.disposed && this.currentState) this.updateBossPhase(this.currentState);
   }
 
+  private createBossAttackProjectile(x: number, y: number, outcome: "dodge" | "hit") {
+    const visual = resolveBossAttackPresentation(this.map.boss.threatTier);
+    const color = outcome === "dodge" ? visual.dodgeColor : visual.hitColor;
+    if (visual.shape === "fang") {
+      return this.add.star(x, y, 4, 8, 23, color, 0.96)
+        .setAngle(45)
+        .setStrokeStyle(5, visual.strokeColor, 0.92)
+        .setDepth(52);
+    }
+    if (visual.shape === "wave") {
+      return this.add.ellipse(x, y, 58, 24, color, 0.9)
+        .setStrokeStyle(6, visual.strokeColor, 0.95)
+        .setDepth(52);
+    }
+    return this.add.circle(x, y, 18, color, 0.95)
+      .setStrokeStyle(5, visual.strokeColor, 0.9)
+      .setDepth(52);
+  }
+
   private playBossAttack(targetPlayerIndex: number, outcome: "telegraph" | "dodge" | "hit", attackName: string) {
     const player = this.players[targetPlayerIndex];
     if (!player?.sprite?.active || !this.boss?.active || this.specialActive) return;
@@ -765,16 +801,17 @@ export class NumberForestScene extends Phaser.Scene {
       else this.tweens.add({ targets: callout, y: callout.y - 32, alpha: 0, duration: 760, ease: "Cubic.easeOut", onComplete: () => callout.destroy() });
     };
 
+    const attackVisual = resolveBossAttackPresentation(this.map.boss.threatTier);
     if (outcome === "telegraph") {
-      boss.setTint(0xffc857);
-      showCallout(`${attackName} 준비!`, "#ffe89a", true);
+      boss.setTint(attackVisual.telegraphColor);
+      showCallout(`${attackName} 준비!`, attackVisual.calloutColor, true);
       this.time.delayedCall(900, () => {
         if (!this.disposed && boss.active) boss.clearTint();
       });
       if (!this.reducedMotion) {
         this.tweens.add({ targets: boss, x: boss.x - 18, scaleX: boss.scaleX * 1.04, scaleY: boss.scaleY * 1.04, duration: 170, yoyo: true, ease: "Sine.easeInOut" });
         if (this.bossBattleAura?.active) {
-          this.bossBattleAura.setStrokeStyle(6, 0xffb84d, 0.95);
+          this.bossBattleAura.setStrokeStyle(6, attackVisual.telegraphColor, 0.95);
           this.bossTelegraphTween?.remove();
           this.bossTelegraphTween = this.tweens.add({ targets: this.bossBattleAura, scale: 1.13, alpha: 1, duration: 420, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
         }
@@ -784,7 +821,7 @@ export class NumberForestScene extends Phaser.Scene {
 
     this.clearBossTelegraph();
 
-    const projectile = this.add.circle(boss.x - boss.displayWidth * 0.35, boss.y, 18, outcome === "dodge" ? 0xffd45c : 0xff765f, 0.95).setStrokeStyle(5, 0xfff4c4, 0.9).setDepth(52);
+    const projectile = this.createBossAttackProjectile(boss.x - boss.displayWidth * 0.35, boss.y, outcome);
     const finish = () => {
       projectile.destroy();
       if (outcome === "dodge") {
@@ -813,7 +850,9 @@ export class NumberForestScene extends Phaser.Scene {
       targets: projectile,
       x: player.sprite.x,
       y: player.sprite.y,
-      scale: 0.7,
+      scaleX: attackVisual.shape === "wave" ? 1.7 : 0.7,
+      scaleY: 0.7,
+      angle: attackVisual.shape === "fang" ? projectile.angle + 160 : projectile.angle,
       duration: 260,
       ease: "Cubic.easeIn",
       onComplete: finish,

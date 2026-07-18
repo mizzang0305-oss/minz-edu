@@ -13,6 +13,7 @@ import {
   ADVENTURE_WORLD_WIDTH,
   NumberForestScene,
   pointInExpandedRect,
+  resolveBossAttackPresentation,
   resolveBossPhasePresentation,
   resolveAxisSeparatedMovement,
 } from "./NumberForestScene";
@@ -101,6 +102,12 @@ describe("NumberForestScene staged monster presentation", () => {
     expect(resolveBossPhasePresentation(1, 10, 135, 135).label).toBe("1단계 · 잠든 수호자 · 보호막 해독 중");
     expect(resolveBossPhasePresentation(2, 0, 120, 180).label).toBe("2단계 · 깨어난 수호자 · 약점이 드러났어");
     expect(resolveBossPhasePresentation(3, 0, 40, 225).label).toBe("3단계 · 최종 수호자 · 마지막 결계");
+  });
+
+  it("gives later bosses distinct readable attack silhouettes", () => {
+    expect(resolveBossAttackPresentation(1).shape).toBe("seed");
+    expect(resolveBossAttackPresentation(2)).toMatchObject({ shape: "fang", telegraphColor: 0xc084fc });
+    expect(resolveBossAttackPresentation(3)).toMatchObject({ shape: "wave", telegraphColor: 0xfb7185 });
   });
 });
 
