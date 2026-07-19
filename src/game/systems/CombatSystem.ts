@@ -118,11 +118,16 @@ function updateActivePlayer(
   return state.players.map((player, index) => (index === state.activePlayerIndex ? update(player) : player));
 }
 
-function damageBoss(state: CoopBattleState, damage: number) {
-  const shieldDamage = Math.min(state.bossShield, damage);
+function damageBoss(state: CoopBattleState, requestedDamage: number, requestedShieldMultiplier = 1) {
+  const damage = Math.max(1, Math.round(requestedDamage));
+  const shieldMultiplier = Math.max(1, requestedShieldMultiplier);
+  const shieldDamage = Math.min(state.bossShield, Math.round(damage * shieldMultiplier));
+  const damageSpentOnShield = Math.ceil(shieldDamage / shieldMultiplier);
+  const hpDamage = Math.max(0, damage - damageSpentOnShield);
   return {
     bossShield: state.bossShield - shieldDamage,
-    bossHp: Math.max(0, state.bossHp - (damage - shieldDamage)),
+    // Learning missions, not raw damage, decide when the boss is defeated.
+    bossHp: state.bossHp <= 0 ? 0 : Math.max(1, state.bossHp - hpDamage),
   };
 }
 
@@ -161,7 +166,7 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
         battleGauge: addGauge(player.battleGauge, 40),
         conceptGauge: addGauge(player.conceptGauge, 40),
       }));
-      const damage = damageBoss(state, 24);
+      const damage = damageBoss(state, action.damage ?? 24, action.shieldDamageMultiplier);
       const isCoop = players.length === 2;
       return {
         ...state,
@@ -193,7 +198,7 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
       const teamLinkGauge = clamp(state.teamLinkGauge + (isDeep ? 50 : 25));
       const deepComplete = isDeep;
       const ready = specialReady(state, players, teamLinkGauge, deepComplete);
-      const damage = damageBoss(state, isDeep ? 34 : 24);
+      const damage = damageBoss(state, action.damage ?? (isDeep ? 34 : 24), action.shieldDamageMultiplier);
       const coopFirstAnswer = players.length === 2 && state.activePlayerIndex === 1 && !isDeep;
 
       if (coopFirstAnswer) {
@@ -303,6 +308,20 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
           : `${target.displayName}, 공격을 맞았지만 괜찮아. 천천히 풀면 다음 공격은 피할 수 있어!`,
       };
     }
+    case "FIELD_DODGE_SUCCESS":
+      return {
+        ...state,
+        message: "쫄 몬스터의 반격을 직접 피했어! 지금이 마무리 공격 기회야.",
+      };
+    case "FIELD_HIT": {
+      const { players, appliedDamage } = damageActivePlayer(state, action.damage);
+      return {
+        ...state,
+        players,
+        damageTaken: state.damageTaken + appliedDamage,
+        message: "쫄 몬스터도 반격해! 보호막을 확인하고 다시 공격하자.",
+      };
+    }
     case "USE_HINT": {
       const activeProfile = getLearningBattleProfile(state.players[state.activePlayerIndex]);
       const firstHintForQuestion = !state.currentQuestionHintUsed;
@@ -318,7 +337,13 @@ export function battleReducer(state: CoopBattleState, action: BattleAction): Coo
       };
     }
     case "SPECIAL_CHALLENGE_SUCCESS":
-      return battleReducer(state, { type: "ANSWER_SUCCESS", missionId: action.missionId ?? "deep-1", deep: true });
+      return battleReducer(state, {
+        type: "ANSWER_SUCCESS",
+        missionId: action.missionId ?? "deep-1",
+        deep: true,
+        damage: action.damage,
+        shieldDamageMultiplier: action.shieldDamageMultiplier,
+      });
     case "PLAYER_READY": {
       const players = state.players.map((player, index) => index === action.playerIndex ? { ...player, ready: true } : player);
       const allReady = players.every((player) => player.ready);

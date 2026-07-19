@@ -13,6 +13,7 @@ import {
   activateChildProfile,
   getChildStorageKey,
   removeChildProfileData,
+  upgradeOwnedItem,
 } from "./storage";
 
 describe("versioned local storage", () => {
@@ -51,24 +52,25 @@ describe("versioned local storage", () => {
     expect(parseStoredGameData(JSON.stringify({ version: 99 }))).toEqual(createDefaultGameData());
   });
 
-  it("v1 데이터를 잃지 않고 v6 장비·세션 스키마로 옮긴다", () => {
+  it("v1 데이터를 잃지 않고 v7 장비 강화·세션 스키마로 옮긴다", () => {
     const migrated = parseStoredGameData(JSON.stringify({
       version: 1,
       inventory: { coins: 42, badges: ["용기 배지"] },
     }));
-    expect(migrated.version).toBe(6);
+    expect(migrated.version).toBe(7);
     expect(migrated.stageProgress["number-forest"].status).toBe("available");
     expect(migrated.playerProfile).toMatchObject({ schoolLevel: "elementary", grade: 2 });
     expect(migrated.inventory.coins).toBe(42);
     expect(migrated.observationRecords).toEqual([]);
     expect(migrated.trainingHistory).toEqual([]);
+    expect(migrated.inventory.upgradeLevels).toMatchObject({ "training-sword": 1, "thunder-strike": 1 });
   });
 
   it("보호자 설정과 친구 임시 프로필을 저장한다", () => {
     const settings = { ...createDefaultGameData().parentSettings, mode: "local-shared-screen" as const, friendName: "하람" };
     saveSettings(settings);
     const stored = readGameData();
-    expect(stored.version).toBe(6);
+    expect(stored.version).toBe(7);
     expect(stored.friendProfiles[0].displayName).toBe("하람");
     expect(stored.friendProfiles[0].schoolLevel).toBe("elementary");
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").localCoopSettings.enabled).toBe(true);
@@ -81,6 +83,9 @@ describe("versioned local storage", () => {
     expect(stored.playerProfile.characterId).toBe("flame-mage");
     expect(stored.inventory.unlockedSkillIds).toContain("flame-burst");
     expect(stored.inventory.ownedItemIds).toContain("flame-burst");
+    expect(stored.inventory.ownedItemIds).toContain("apprentice-wand");
+    expect(stored.inventory.equippedWeaponId).toBe("apprentice-wand");
+    expect(stored.inventory.upgradeLevels["apprentice-wand"]).toBe(1);
   });
 
   it("중앙 저장 시 동기화 이벤트를 보내고 원격 병합 저장은 다시 보내지 않는다", () => {
@@ -217,5 +222,38 @@ describe("versioned local storage", () => {
     expect(stored.learningGoalProgress[goalId].questionCount).toBe(5);
     expect(stored.conceptProgress["place-value"]).toBe("익히는 중");
     expect(stored.conceptProgress["make-ten"]).toBeUndefined();
+  });
+
+  it("보유 장비를 코인으로 강화하고 레벨을 저장한다", () => {
+    const data = createDefaultGameData();
+    data.inventory.coins = 100;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    const upgraded = upgradeOwnedItem("training-sword");
+
+    expect(upgraded.ok).toBe(true);
+    expect(upgraded.data.inventory.upgradeLevels["training-sword"]).toBe(2);
+    expect(upgraded.data.inventory.coins).toBe(80);
+  });
+
+  it("v6 저장 데이터의 보유 물품을 모두 Lv.1로 안전하게 마이그레이션한다", () => {
+    const migrated = parseStoredGameData(JSON.stringify({
+      version: 6,
+      inventory: {
+        coins: 50,
+        badges: [],
+        ownedItemIds: ["training-sword", "thunder-strike", "forest-armor"],
+        equippedWeaponId: "training-sword",
+        equippedArmorId: "forest-armor",
+        unlockedSkillIds: ["thunder-strike"],
+      },
+    }));
+
+    expect(migrated.version).toBe(7);
+    expect(migrated.inventory.upgradeLevels).toMatchObject({
+      "training-sword": 1,
+      "thunder-strike": 1,
+      "forest-armor": 1,
+    });
   });
 });

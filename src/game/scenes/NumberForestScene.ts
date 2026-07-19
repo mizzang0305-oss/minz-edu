@@ -1,6 +1,6 @@
 import * as Phaser from "phaser";
 import { gameEventBridge, type ExplorationInteraction } from "@/game/bridge/gameEventBridge";
-import type { CoopBattleState } from "@/types/battle";
+import type { CoopBattleState, PlayerAttackSignal } from "@/types/battle";
 import { getExplorationMap } from "@/game/maps/mapRegistry";
 import type { ExplorationMapDefinition, ExplorationRect, ExplorationStageId } from "@/types/exploration";
 import { movementDelta } from "@/game/systems/MovementSystem";
@@ -104,6 +104,7 @@ type FieldEnemyVisual = {
   sprite: Phaser.GameObjects.Image;
   aura: Phaser.GameObjects.Ellipse;
   label: Phaser.GameObjects.Text;
+  hp: number;
   defeated: boolean;
 };
 
@@ -123,6 +124,8 @@ export class NumberForestScene extends Phaser.Scene {
   private chest?: Phaser.GameObjects.Image;
   private tokens: Phaser.GameObjects.Container[] = [];
   private fieldEnemies: FieldEnemyVisual[] = [];
+  private fieldCounterTimer?: Phaser.Time.TimerEvent;
+  private pendingFieldCounterEnemyId: string | null = null;
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd?: Record<"left" | "right" | "up" | "down", Phaser.Input.Keyboard.Key>;
   private dashKey?: Phaser.Input.Keyboard.Key;
@@ -151,6 +154,7 @@ export class NumberForestScene extends Phaser.Scene {
   private specialTimers: Phaser.Time.TimerEvent[] = [];
   private explorationOnlyObjects: Phaser.GameObjects.GameObject[] = [];
   private compactBattleLayout = false;
+  private hitStopGeneration = 0;
   private viewport = { width: ADVENTURE_WORLD_WIDTH, height: ADVENTURE_WORLD_HEIGHT };
   private readonly heroAsset?: string;
 
@@ -227,12 +231,13 @@ export class NumberForestScene extends Phaser.Scene {
 
     this.unsubscribers.push(
       gameEventBridge.on("sync", (state) => this.syncState(state)),
-      gameEventBridge.on("attack", (payload) => this.playAttack(payload.playerIndex, payload.kind)),
+      gameEventBridge.on("attack", (payload) => this.playAttack(payload)),
       gameEventBridge.on("bossAttack", (payload) => this.playBossAttack(payload.targetPlayerIndex, payload.outcome, payload.attackName)),
       gameEventBridge.on("special", (payload) => this.playSpecial(payload.coop, payload.skillName)),
       gameEventBridge.on("move", ({ direction, active }) => active ? this.touchDirections.add(direction) : this.touchDirections.delete(direction)),
       gameEventBridge.on("dash", () => this.activateDash(this.time.now)),
       gameEventBridge.on("fieldAttack", ({ enemyId }) => this.attackFieldEnemy(enemyId)),
+      gameEventBridge.on("fieldDodge", ({ enemyId }) => this.dodgeFieldCounter(enemyId)),
       gameEventBridge.on("interact", ({ npcId }) => this.activateInteraction(npcId)),
       gameEventBridge.on("viewportChanged", (viewport) => {
         this.viewport = viewport;
@@ -246,6 +251,10 @@ export class NumberForestScene extends Phaser.Scene {
       this.unsubscribers.forEach((unsubscribe) => unsubscribe());
       this.unsubscribers = [];
       this.touchDirections.clear();
+      this.fieldCounterTimer?.remove(false);
+      this.fieldCounterTimer = undefined;
+      this.pendingFieldCounterEnemyId = null;
+      gameEventBridge.emit("fieldEnemyThreat", null);
       this.cameras?.main?.stopFollow();
       this.time?.removeAllEvents();
       this.tweens?.killAll();
@@ -411,7 +420,9 @@ export class NumberForestScene extends Phaser.Scene {
     );
     const bossReady = this.npcTalked && this.chestOpened && this.collected >= this.tokens.length && this.bridgeCrossed;
     const bossNearby = bossReady && Phaser.Math.Distance.Between(hero.sprite.x, hero.sprite.y, this.map.portal.x, this.map.portal.y) <= PORTAL_REACH_RADIUS + 35;
-    const fieldEnemy = this.fieldEnemies.find((enemy) => !enemy.defeated && Phaser.Math.Distance.Between(hero.sprite.x, hero.sprite.y, enemy.sprite.x, enemy.sprite.y) <= 108);
+    const fieldEnemy = this.pendingFieldCounterEnemyId === null
+      ? this.fieldEnemies.find((enemy) => !enemy.defeated && Phaser.Math.Distance.Between(hero.sprite.x, hero.sprite.y, enemy.sprite.x, enemy.sprite.y) <= 108)
+      : undefined;
     let interaction: ExplorationInteraction | null = null;
 
     if (fieldEnemy) {
@@ -557,7 +568,7 @@ export class NumberForestScene extends Phaser.Scene {
         backgroundColor: "#5a251ddd",
         padding: { x: 7, y: 3 },
       }).setOrigin(0.5).setDepth(21));
-      return { ...enemy, sprite, aura, label, defeated: false };
+      return { ...enemy, sprite, aura, label, hp: 2, defeated: false };
     });
   }
 
@@ -565,34 +576,109 @@ export class NumberForestScene extends Phaser.Scene {
     const hero = this.players[0];
     const enemy = this.fieldEnemies.find((item) => item.id === enemyId && !item.defeated);
     if (!hero || !enemy || Phaser.Math.Distance.Between(hero.sprite.x, hero.sprite.y, enemy.sprite.x, enemy.sprite.y) > 125) return;
-    enemy.defeated = true;
+    enemy.hp = Math.max(0, enemy.hp - 1);
+    const defeated = enemy.hp === 0;
+    enemy.defeated = defeated;
     this.nearbyInteractionId = null;
     gameEventBridge.emit("interactionAvailable", null);
-    const impact = this.add.text(enemy.sprite.x, enemy.sprite.y - 42, "HIT!", {
+    const impact = this.add.text(enemy.sprite.x, enemy.sprite.y - 42, defeated ? "FINISH!" : "HIT!  -1", {
       fontFamily: "Arial, sans-serif",
-      fontSize: "26px",
-      color: "#fff1a3",
+      fontSize: defeated ? "28px" : "25px",
+      color: defeated ? "#fff1a3" : "#9ff7ff",
       fontStyle: "bold",
       stroke: "#7c2d12",
       strokeThickness: 5,
     }).setOrigin(0.5).setDepth(40);
     if (this.reducedMotion) {
-      enemy.sprite.setVisible(false);
-      enemy.aura.setVisible(false);
-      enemy.label.setVisible(false);
-      impact.destroy();
-    } else {
-      this.cameras.main.shake(120, 0.003);
-      this.tweens.add({ targets: hero.sprite, x: hero.sprite.x + (hero.sprite.flipX ? -20 : 20), duration: 90, yoyo: true, ease: "Power2" });
-      this.tweens.add({ targets: [enemy.sprite, enemy.aura, enemy.label], x: enemy.sprite.x + (hero.sprite.flipX ? -38 : 38), alpha: 0, angle: 12, duration: 260, ease: "Cubic.easeOut", onComplete: () => {
+      if (defeated) {
         enemy.sprite.setVisible(false);
         enemy.aura.setVisible(false);
         enemy.label.setVisible(false);
-      } });
+      }
+      this.time.delayedCall(240, () => impact.active && impact.destroy());
+    } else {
+      this.applyHitStop(70, () => {
+        this.cameras.main.shake(defeated ? 150 : 105, defeated ? 0.005 : 0.003);
+      });
+      this.tweens.add({ targets: hero.sprite, x: hero.sprite.x + (hero.sprite.flipX ? -20 : 20), duration: 90, yoyo: true, ease: "Power2" });
+      if (defeated) {
+        this.tweens.add({ targets: [enemy.sprite, enemy.aura, enemy.label], x: enemy.sprite.x + (hero.sprite.flipX ? -38 : 38), alpha: 0, angle: 12, duration: 260, ease: "Cubic.easeOut", onComplete: () => {
+          enemy.sprite.setVisible(false);
+          enemy.aura.setVisible(false);
+          enemy.label.setVisible(false);
+        } });
+      } else {
+        const enemyX = enemy.sprite.x;
+        enemy.sprite.setTint(0xffffff);
+        this.tweens.add({ targets: [enemy.sprite, enemy.aura, enemy.label], x: enemyX + (hero.sprite.flipX ? -22 : 22), duration: 100, yoyo: true, ease: "Power2", onComplete: () => enemy.sprite.clearTint() });
+      }
       this.tweens.add({ targets: impact, y: impact.y - 44, alpha: 0, scale: 1.35, duration: 440, onComplete: () => impact.destroy() });
     }
-    this.safeSetText(this.statusText, `${enemy.name} 격파! 보스의 봉인은 문제를 풀어야 해제됩니다.`);
+    this.safeSetText(this.statusText, defeated
+      ? `${enemy.name} 격파! 보스의 봉인은 문제를 풀어야 해제됩니다.`
+      : `${enemy.name}이 비틀거려! 문제 없이 한 번 더 직접 공격할 수 있어요.`);
+    if (!defeated) this.scheduleFieldCounter(enemy);
     this.emitProgress();
+  }
+
+  private scheduleFieldCounter(enemy: FieldEnemyVisual) {
+    this.fieldCounterTimer?.remove(false);
+    this.pendingFieldCounterEnemyId = enemy.id;
+    gameEventBridge.emit("fieldEnemyThreat", { enemyId: enemy.id, enemyName: enemy.name });
+    this.fieldCounterTimer = this.time.delayedCall(1100, () => this.playFieldCounter(enemy.id));
+  }
+
+  private dodgeFieldCounter(enemyId: string) {
+    if (this.pendingFieldCounterEnemyId !== enemyId) return;
+    this.fieldCounterTimer?.remove(false);
+    this.fieldCounterTimer = undefined;
+    this.pendingFieldCounterEnemyId = null;
+    gameEventBridge.emit("fieldEnemyThreat", null);
+    gameEventBridge.emit("fieldDefenseResolved", { outcome: "dodge", damage: 0 });
+    const hero = this.players[0];
+    if (hero && !this.reducedMotion) {
+      const startY = hero.sprite.y;
+      this.tweens.add({ targets: hero.sprite, y: startY - 42, duration: 120, yoyo: true, ease: "Sine.easeOut" });
+    }
+    this.safeSetText(this.statusText, "회피 성공! 지금이 마무리 공격 기회예요.");
+  }
+
+  private playFieldCounter(enemyId: string) {
+    if (this.pendingFieldCounterEnemyId !== enemyId) return;
+    const hero = this.players[0];
+    const enemy = this.fieldEnemies.find((item) => item.id === enemyId && !item.defeated);
+    this.fieldCounterTimer = undefined;
+    this.pendingFieldCounterEnemyId = null;
+    gameEventBridge.emit("fieldEnemyThreat", null);
+    if (!hero || !enemy) return;
+
+    const projectile = this.add.circle(enemy.sprite.x, enemy.sprite.y, 11, 0xff754f, 0.95)
+      .setStrokeStyle(4, 0xffd29c, 0.95)
+      .setDepth(42);
+    const resolveHit = () => {
+      if (this.disposed) return;
+      projectile.destroy();
+      const hitText = this.add.text(hero.sprite.x, hero.sprite.y - 48, "-5", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "25px",
+        color: "#ffb39d",
+        fontStyle: "bold",
+        stroke: "#4f1111",
+        strokeThickness: 5,
+      }).setOrigin(0.5).setDepth(48);
+      gameEventBridge.emit("fieldDefenseResolved", { outcome: "hit", damage: 5 });
+      if (this.reducedMotion) {
+        this.time.delayedCall(260, () => hitText.active && hitText.destroy());
+      } else {
+        this.applyHitStop(70, () => this.cameras.main.shake(130, 0.0045));
+        const heroX = hero.sprite.x;
+        this.tweens.add({ targets: hero.sprite, x: heroX - (enemy.sprite.x < heroX ? -28 : 28), duration: 100, yoyo: true, ease: "Power2" });
+        this.tweens.add({ targets: hitText, y: hitText.y - 38, alpha: 0, duration: 430, onComplete: () => hitText.destroy() });
+      }
+      this.safeSetText(this.statusText, `${enemy.name}의 반격! 보호막을 확인하고 다시 공격해요.`);
+    };
+    if (this.reducedMotion) resolveHit();
+    else this.tweens.add({ targets: projectile, x: hero.sprite.x, y: hero.sprite.y, duration: 230, ease: "Cubic.easeIn", onComplete: resolveHit });
   }
 
   private buildPlayer(index: number, state: CoopBattleState) {
@@ -756,6 +842,10 @@ export class NumberForestScene extends Phaser.Scene {
 
   private enterBattleLayout() {
     this.explorationActive = false;
+    this.fieldCounterTimer?.remove(false);
+    this.fieldCounterTimer = undefined;
+    this.pendingFieldCounterEnemyId = null;
+    gameEventBridge.emit("fieldEnemyThreat", null);
     this.nearbyInteractionId = null;
     gameEventBridge.emit("interactionAvailable", null);
     this.touchDirections.clear();
@@ -946,56 +1036,105 @@ export class NumberForestScene extends Phaser.Scene {
     });
   }
 
-  private playAttack(playerIndex: number, kind: "strong" | "magic") {
-    const player = this.players[playerIndex];
+  private playAttack(attack: Omit<PlayerAttackSignal, "id">) {
+    const player = this.players[attack.playerIndex];
     if (!player || !this.boss) return;
+    const palette = {
+      thunder: { primary: 0x64e7f7, secondary: 0xbff8ff, text: "#bff8ff" },
+      fire: { primary: 0xff7438, secondary: 0xffd36b, text: "#ffe0a3" },
+      impact: { primary: 0xffc857, secondary: 0xfff1a3, text: "#fff1a3" },
+    }[attack.element];
     if (this.reducedMotion) {
-      this.boss.setTint(kind === "strong" ? 0x64e7f7 : 0xff72c4);
-      this.showCombatCallout(kind);
+      this.boss.setTint(palette.primary);
+      this.showCombatCallout(attack, palette.text);
       this.time.delayedCall(90, () => {
         if (!this.disposed && this.boss?.active) this.boss.clearTint();
       });
       return;
     }
     const startX = player.sprite.x;
-    const trail = this.add.circle(player.sprite.x + 58, player.sprite.y, 10, kind === "strong" ? 0x64e7f7 : 0xff72c4, 0.92).setDepth(45);
-    this.tweens.add({ targets: trail, x: this.boss.x - 60, y: this.boss.y, scale: 0.35, duration: 150, ease: "Cubic.easeIn", onComplete: () => trail.destroy() });
+    const startY = player.sprite.y;
+    const levelScale = 1 + (attack.weaponLevel + attack.skillLevel - 2) * 0.04 + (attack.charged ? 0.24 : 0);
+    const projectile = attack.style === "slash"
+      ? this.add.rectangle(player.sprite.x + 58, player.sprite.y, 76, 12, palette.primary, 0.96).setRotation(-0.38)
+      : attack.style === "magic"
+        ? this.add.circle(player.sprite.x + 58, player.sprite.y, attack.charged ? 19 : 12, palette.primary, 0.94).setStrokeStyle(5, palette.secondary, 0.9)
+        : this.add.star(player.sprite.x + 58, player.sprite.y, 6, 8, attack.charged ? 25 : 17, palette.primary, 1).setStrokeStyle(4, palette.secondary, 0.95);
+    projectile.setDepth(45).setScale(levelScale);
+    this.tweens.add({
+      targets: projectile,
+      x: this.boss.x - 60,
+      y: this.boss.y,
+      scale: attack.style === "breaker" ? 1.35 : 0.48,
+      angle: attack.style === "slash" ? 38 : attack.style === "breaker" ? 90 : 0,
+      duration: attack.charged ? 210 : 150,
+      ease: "Cubic.easeIn",
+      onComplete: () => projectile.destroy(),
+    });
+    const attackMotion = attack.delivery === "melee"
+      ? { x: startX + (attack.charged ? 142 : 115) }
+      : { y: startY - (attack.charged ? 18 : 10), angle: attack.charged ? -7 : -4 };
     this.tweens.add({
       targets: player.sprite,
-      x: startX + 115,
-      duration: 150,
+      ...attackMotion,
+      duration: attack.charged ? 190 : 150,
       yoyo: true,
       ease: "Power2",
       onYoyo: () => {
-        if (!this.reducedMotion && this.shakeIntensity > 0) this.cameras.main.shake(120, this.shakeIntensity === 1 ? 0.003 : 0.006);
         this.boss?.setTint(0xffffff);
         this.time.delayedCall(120, () => {
           if (!this.disposed && this.boss?.active) this.boss.clearTint();
         });
-        const hit = this.add.star(this.boss!.x - 55, this.boss!.y, 10, 10, 36, kind === "strong" ? 0x64e7f7 : 0xff72c4, 1).setDepth(50);
-        const impactRing = this.add.ellipse(this.boss!.x - 44, this.boss!.y, 54, 54, kind === "strong" ? 0x64e7f7 : 0xff72c4, 0.08)
-          .setStrokeStyle(7, kind === "strong" ? 0xbff8ff : 0xffd3f1, 0.95)
+        const hit = this.add.star(this.boss!.x - 55, this.boss!.y, attack.style === "breaker" ? 6 : 10, 10, attack.charged ? 48 : 36, palette.primary, 1).setDepth(50);
+        const impactRing = this.add.ellipse(this.boss!.x - 44, this.boss!.y, attack.charged ? 78 : 54, attack.charged ? 78 : 54, palette.primary, 0.08)
+          .setStrokeStyle(attack.charged ? 10 : 7, palette.secondary, 0.95)
           .setDepth(49);
-        this.tweens.add({ targets: hit, scale: 4, angle: 45, alpha: 0, duration: 520, ease: "Cubic.easeOut", onComplete: () => hit.destroy() });
-        this.tweens.add({ targets: impactRing, scale: 3.2, alpha: 0, duration: 430, ease: "Cubic.easeOut", onComplete: () => impactRing.destroy() });
+        this.tweens.add({ targets: hit, scale: attack.charged ? 5.2 : 4, angle: attack.style === "breaker" ? 90 : 45, alpha: 0, duration: 520, ease: "Cubic.easeOut", onComplete: () => hit.destroy() });
+        this.tweens.add({ targets: impactRing, scale: attack.charged ? 4.2 : 3.2, alpha: 0, duration: 430, ease: "Cubic.easeOut", onComplete: () => impactRing.destroy() });
         if (this.boss?.active) {
           const bossX = this.boss.x;
-          this.tweens.add({ targets: this.boss, x: bossX + 24, angle: kind === "strong" ? 4 : -4, duration: 90, yoyo: true, ease: "Power2" });
+          const knockback = attack.charged ? 48 : attack.style === "breaker" ? 38 : 26;
+          this.tweens.add({ targets: this.boss, x: bossX + knockback, angle: attack.style === "magic" ? -5 : 5, duration: 105, yoyo: true, ease: "Power2" });
         }
-        this.showCombatCallout(kind);
+        this.applyHitStop(attack.hitStopMs, () => {
+          if (this.shakeIntensity > 0) {
+            this.cameras.main.shake(attack.charged ? 210 : 140, this.shakeIntensity === 1 ? (attack.charged ? 0.0045 : 0.003) : (attack.charged ? 0.008 : 0.006));
+          }
+          this.cameras.main.flash(attack.charged ? 95 : 65, 255, 245, 205, false);
+        });
+        this.showCombatCallout(attack, palette.text);
       },
     });
   }
 
-  private showCombatCallout(kind: "strong" | "magic") {
+  private applyHitStop(durationMs: number, onResume: () => void) {
+    if (this.reducedMotion) {
+      onResume();
+      return;
+    }
+    const generation = ++this.hitStopGeneration;
+    this.tweens.timeScale = 0.01;
+    window.setTimeout(() => {
+      if (this.disposed || generation !== this.hitStopGeneration) return;
+      this.tweens.timeScale = 1;
+      onResume();
+    }, durationMs);
+  }
+
+  private showCombatCallout(attack: Omit<PlayerAttackSignal, "id">, color: string) {
     if (!this.boss?.active) return;
-    const callout = this.add.text(this.boss.x - 52, this.boss.y - 76, kind === "strong" ? "약점 발견!" : "규칙 연결!", {
+    const styleLabel = attack.style === "slash"
+      ? "번개 검격"
+      : attack.style === "magic"
+        ? "화염 마법탄"
+        : attack.delivery === "projectile" ? "원거리 파쇄" : "보호막 파괴";
+    const callout = this.add.text(this.boss.x - 52, this.boss.y - 76, `${attack.charged ? "CHARGE " : ""}${styleLabel}!  -${attack.damage}`, {
       fontFamily: "Malgun Gothic, Arial, sans-serif",
-      fontSize: "22px",
-      color: kind === "strong" ? "#bff8ff" : "#ffd3f1",
+      fontSize: attack.charged ? "28px" : "22px",
+      color,
       fontStyle: "bold",
       stroke: "#08243d",
-      strokeThickness: 6,
+      strokeThickness: attack.charged ? 8 : 6,
     }).setOrigin(0.5).setDepth(55);
     if (this.reducedMotion) {
       this.time.delayedCall(520, () => callout.active && callout.destroy());

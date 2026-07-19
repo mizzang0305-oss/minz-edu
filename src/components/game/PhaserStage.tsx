@@ -5,32 +5,35 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import type Phaser from "phaser";
 import { gameEventBridge } from "@/game/bridge/gameEventBridge";
 import type { ExplorationInteraction } from "@/game/bridge/gameEventBridge";
-import type { BossAttackSignal, CoopBattleState } from "@/types/battle";
+import type { BossAttackSignal, CoopBattleState, PlayerAttackSignal } from "@/types/battle";
 import type { ExplorationStageId } from "@/types/exploration";
 import type { CharacterId } from "@/types/loadout";
 
 type PhaserStageProps = {
   battle: CoopBattleState;
-  attackSignal: { id: number; playerIndex: number; kind: "strong" | "magic" } | null;
+  attackSignal: PlayerAttackSignal | null;
   bossAttackSignal?: BossAttackSignal | null;
   specialSignal: number;
   onSpecialComplete: () => void;
   onExploreComplete: () => void;
+  onFieldDefenseResolved?: (outcome: "dodge" | "hit", damage: number) => void;
   stageId: ExplorationStageId;
   characterId?: CharacterId;
 };
 
 type Direction = "left" | "right" | "up" | "down";
 
-export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, specialSignal, onSpecialComplete, onExploreComplete, stageId, characterId }: PhaserStageProps) {
+export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, specialSignal, onSpecialComplete, onExploreComplete, onFieldDefenseResolved = () => undefined, stageId, characterId }: PhaserStageProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const battleRef = useRef(battle);
   const specialCallbackRef = useRef(onSpecialComplete);
   const exploreCallbackRef = useRef(onExploreComplete);
+  const fieldDefenseCallbackRef = useRef(onFieldDefenseResolved);
   const activePointersRef = useRef(new Map<number, Direction>());
   const [progress, setProgress] = useState({ collected: 0, total: 3, bridgeCrossed: false, secretDiscovered: false, npcTalked: false, chestOpened: false, nextDirection: "오른쪽" as "왼쪽" | "오른쪽" | "위쪽" | "아래쪽" | "도착", zonePage: 1 as 1 | 2, fieldEnemiesDefeated: 0, fieldEnemiesTotal: 2 });
   const [interaction, setInteraction] = useState<ExplorationInteraction | null>(null);
+  const [fieldThreat, setFieldThreat] = useState<{ enemyId: string; enemyName: string } | null>(null);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const primaryPlayer = battle.players[0];
@@ -73,6 +76,7 @@ export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, spe
   useEffect(() => { battleRef.current = battle; }, [battle]);
   useEffect(() => { specialCallbackRef.current = onSpecialComplete; }, [onSpecialComplete]);
   useEffect(() => { exploreCallbackRef.current = onExploreComplete; }, [onExploreComplete]);
+  useEffect(() => { fieldDefenseCallbackRef.current = onFieldDefenseResolved; }, [onFieldDefenseResolved]);
 
   useEffect(() => {
     let active = true;
@@ -89,6 +93,8 @@ export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, spe
       setReady(true);
     });
     const offInteraction = gameEventBridge.on("interactionAvailable", setInteraction);
+    const offFieldThreat = gameEventBridge.on("fieldEnemyThreat", setFieldThreat);
+    const offFieldDefense = gameEventBridge.on("fieldDefenseResolved", ({ outcome, damage }) => fieldDefenseCallbackRef.current(outcome, damage));
 
     const stopMovement = () => {
       activePointersRef.current.clear();
@@ -149,6 +155,8 @@ export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, spe
       offProgress();
       offReady();
       offInteraction();
+      offFieldThreat();
+      offFieldDefense();
       window.removeEventListener("blur", stopMovement);
       window.removeEventListener("orientationchange", refreshScale);
       window.removeEventListener("pagehide", handlePageHide);
@@ -211,6 +219,17 @@ export function PhaserStage({ battle, attackSignal, bossAttackSignal = null, spe
               >
                 <span className="rpg-prompt-key" aria-hidden="true">E</span>
                 <span><strong>{interaction.label}</strong><small>{interaction.hint}</small></span>
+              </button>
+            )}
+            {fieldThreat && (
+              <button
+                type="button"
+                className="field-defense-prompt"
+                aria-label={`${fieldThreat.enemyName} 반격 회피`}
+                onClick={() => gameEventBridge.emit("fieldDodge", { enemyId: fieldThreat.enemyId })}
+              >
+                <strong>회피!</strong>
+                <small>{fieldThreat.enemyName}의 반격이 온다</small>
               </button>
             )}
             <div className="touch-dpad rpg-world-dpad" role="group" aria-label="캐릭터 이동 조이스틱" onContextMenu={(event) => event.preventDefault()}>

@@ -1,4 +1,5 @@
 import type { SchoolLevel } from "./learning";
+import type { AttackStyle, SkillElement, UpgradeLevel } from "./loadout";
 
 export type PlayerRole = "attack" | "defense" | "magic" | "support";
 export type BattleMode = "solo" | "local-shared-screen";
@@ -98,16 +99,31 @@ export type CoopMission = {
 
 export type BattleAction =
   | { type: "START"; goalTitle?: string }
-  | { type: "MANIPULATION_SUCCESS"; missionId?: string }
-  | { type: "ANSWER_SUCCESS"; missionId: string; deep?: boolean }
+  | { type: "MANIPULATION_SUCCESS"; missionId?: string; damage?: number; shieldDamageMultiplier?: number }
+  | { type: "ANSWER_SUCCESS"; missionId: string; deep?: boolean; damage?: number; shieldDamageMultiplier?: number }
   | { type: "ANSWER_RETRY"; hint?: string }
   | { type: "DODGE_SUCCESS" }
   | { type: "DODGE_FAILED"; damage: number; hint?: string }
+  | { type: "FIELD_DODGE_SUCCESS" }
+  | { type: "FIELD_HIT"; damage: number }
   | { type: "USE_HINT"; hint?: string }
-  | { type: "SPECIAL_CHALLENGE_SUCCESS"; missionId?: string }
+  | { type: "SPECIAL_CHALLENGE_SUCCESS"; missionId?: string; damage?: number; shieldDamageMultiplier?: number }
   | { type: "PLAYER_READY"; playerIndex: number }
   | { type: "RESET_READY" }
   | { type: "SPECIAL_COMPLETE" };
+
+export type PlayerAttackSignal = {
+  id: number;
+  playerIndex: number;
+  style: AttackStyle;
+  element: SkillElement;
+  delivery: "melee" | "projectile";
+  charged: boolean;
+  damage: number;
+  hitStopMs: 70;
+  weaponLevel: UpgradeLevel;
+  skillLevel: UpgradeLevel;
+};
 
 export type BossAttackSignal = {
   id: number;

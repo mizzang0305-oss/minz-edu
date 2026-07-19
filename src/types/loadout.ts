@@ -1,14 +1,21 @@
 export type CharacterId = "thunder-sword" | "flame-mage";
 export type SkillId = "thunder-strike" | "flame-burst" | "shield-break";
 export type EquipmentId = "training-sword" | "apprentice-wand" | "forest-armor" | "ember-robe";
+export type UpgradeableItemId = EquipmentId | SkillId;
+export type UpgradeLevel = 1 | 2 | 3 | 4 | 5;
+export type AttackStyle = "slash" | "magic" | "breaker";
+export type SkillElement = "thunder" | "fire" | "impact";
 
-export type ShopItem = {
-  id: EquipmentId | SkillId;
-  type: "weapon" | "armor" | "skill";
+type ShopItemDetails = {
   name: string;
   description: string;
   cost: number;
 };
+
+export type ShopItem = ShopItemDetails & (
+  | { id: EquipmentId; type: "weapon" | "armor" }
+  | { id: SkillId; type: "skill" }
+);
 
 export const CHARACTERS: Array<{
   id: CharacterId;
@@ -16,6 +23,7 @@ export const CHARACTERS: Array<{
   job: string;
   asset: string;
   defaultSkillId: SkillId;
+  defaultWeaponId: EquipmentId;
 }> = [
   {
     id: "thunder-sword",
@@ -23,6 +31,7 @@ export const CHARACTERS: Array<{
     job: "번개 검사",
     asset: "/game-assets/duelyst/hero-thunder.webp",
     defaultSkillId: "thunder-strike",
+    defaultWeaponId: "training-sword",
   },
   {
     id: "flame-mage",
@@ -30,6 +39,7 @@ export const CHARACTERS: Array<{
     job: "불꽃 마법사",
     asset: "/game-assets/duelyst/hero-magic.webp",
     defaultSkillId: "flame-burst",
+    defaultWeaponId: "apprentice-wand",
   },
 ];
 
@@ -49,4 +59,48 @@ export function getCharacter(characterId: string | undefined) {
 
 export function getSkill(skillId: string | undefined) {
   return SHOP_ITEMS.find((item) => item.type === "skill" && item.id === skillId) ?? SHOP_ITEMS.find((item) => item.id === "thunder-strike")!;
+}
+
+export function getShopItem(itemId: string | undefined) {
+  return SHOP_ITEMS.find((item) => item.id === itemId);
+}
+
+export function normalizeUpgradeLevel(value: unknown): UpgradeLevel {
+  if (typeof value !== "number" || !Number.isInteger(value)) return 1;
+  return Math.max(1, Math.min(5, value)) as UpgradeLevel;
+}
+
+export function getUpgradeCost(itemId: UpgradeableItemId, currentLevel: UpgradeLevel) {
+  if (currentLevel >= 5) return null;
+  const item = getShopItem(itemId);
+  if (!item) return null;
+  return 20 + (currentLevel - 1) * 15 + Math.floor(item.cost / 4);
+}
+
+export function getAttackStyle(skillId: SkillId, weaponId: EquipmentId): AttackStyle {
+  if (skillId === "shield-break") return "breaker";
+  if (skillId === "flame-burst" || weaponId === "apprentice-wand") return "magic";
+  return "slash";
+}
+
+export function getSkillElement(skillId: SkillId): SkillElement {
+  if (skillId === "flame-burst") return "fire";
+  if (skillId === "shield-break") return "impact";
+  return "thunder";
+}
+
+export function getSkillElementLabel(skillId: SkillId) {
+  const element = getSkillElement(skillId);
+  if (element === "fire") return "🔥 화염";
+  if (element === "impact") return "💥 파괴";
+  return "⚡ 번개";
+}
+
+export function isSkillCompatible(characterId: CharacterId, skillId: SkillId) {
+  if (skillId === "shield-break") return true;
+  return characterId === "flame-mage" ? skillId === "flame-burst" : skillId === "thunder-strike";
+}
+
+export function isWeaponCompatible(characterId: CharacterId, weaponId: EquipmentId) {
+  return characterId === "flame-mage" ? weaponId === "apprentice-wand" : weaponId === "training-sword";
 }
