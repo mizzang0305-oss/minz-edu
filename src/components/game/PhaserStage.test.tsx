@@ -244,6 +244,35 @@ describe("PhaserStage", () => {
     view.unmount();
   });
 
+  it("쫄 몬스터의 반격 예고에 직접 회피하고 피격 결과를 전투 상태로 전달한다", async () => {
+    const battle = createBattleState(DEFAULT_SETTINGS);
+    const dodges: string[] = [];
+    const onFieldDefenseResolved = vi.fn();
+    const offDodge = gameEventBridge.on("fieldDodge", ({ enemyId }) => dodges.push(enemyId));
+    const view = render(
+      <PhaserStage
+        battle={battle}
+        attackSignal={null}
+        specialSignal={0}
+        onSpecialComplete={vi.fn()}
+        onExploreComplete={vi.fn()}
+        onFieldDefenseResolved={onFieldDefenseResolved}
+        stageId="number-forest"
+      />,
+    );
+
+    await waitFor(() => expect(mocks.createPhaserGame).toHaveBeenCalledOnce());
+    act(() => gameEventBridge.emit("fieldEnemyThreat", { enemyId: "sprout-1", enemyName: "씨앗 쫄" }));
+    fireEvent.click(screen.getByRole("button", { name: "씨앗 쫄 반격 회피" }));
+    expect(dodges).toEqual(["sprout-1"]);
+
+    act(() => gameEventBridge.emit("fieldDefenseResolved", { outcome: "hit", damage: 5 }));
+    expect(onFieldDefenseResolved).toHaveBeenCalledWith("hit", 5);
+
+    offDodge();
+    view.unmount();
+  });
+
   it("보스 공격 결과를 Phaser 장면으로 한 번 전달한다", async () => {
     const battle = createBattleState(DEFAULT_SETTINGS);
     const bossAttacks: Array<{ targetPlayerIndex: number; outcome: string; attackName: string }> = [];

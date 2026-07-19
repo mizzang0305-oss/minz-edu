@@ -160,4 +160,38 @@ describe("CombatSystem", () => {
     state = battleReducer(state, { type: "SPECIAL_CHALLENGE_SUCCESS", missionId: "e12-math-3" });
     expect(state.completedMissionIds).toEqual(["e12-math-1", "e12-math-2", "e12-math-3"]);
   });
+
+  it("강화 공격 피해와 방패 파괴 배율을 보스 상태에 반영한다", () => {
+    const started = battleReducer(createBattleState(DEFAULT_SETTINGS), { type: "START" });
+    const attacked = battleReducer(
+      { ...started, bossHp: 100, bossShield: 20 },
+      { type: "MANIPULATION_SUCCESS", missionId: "charged-1", damage: 30, shieldDamageMultiplier: 1.8 },
+    );
+
+    expect(attacked.bossShield).toBe(0);
+    expect(attacked.bossHp).toBe(82);
+  });
+
+  it("강한 장비라도 문제 결계를 건너뛰어 보스를 조기 처치하지 않는다", () => {
+    const started = battleReducer(createBattleState(DEFAULT_SETTINGS), { type: "START" });
+    const attacked = battleReducer(
+      { ...started, bossHp: 20, bossShield: 0 },
+      { type: "MANIPULATION_SUCCESS", missionId: "gated-1", damage: 999 },
+    );
+
+    expect(attacked.bossHp).toBe(1);
+    expect(attacked.battlePhase).toBe("PLAYER_ANSWER");
+  });
+
+  it("쫄 몬스터도 반격하지만 아이의 HP를 1 아래로 떨어뜨리지 않는다", () => {
+    const state = createBattleState(DEFAULT_SETTINGS);
+    const hit = battleReducer({
+      ...state,
+      players: state.players.map((player) => ({ ...player, hp: 3, shield: 0 })),
+    }, { type: "FIELD_HIT", damage: 9 });
+
+    expect(hit.players[0].hp).toBe(1);
+    expect(hit.damageTaken).toBe(2);
+    expect(hit.retryCount).toBe(0);
+  });
 });

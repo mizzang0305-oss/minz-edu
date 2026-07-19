@@ -1,4 +1,4 @@
-import type { BossAttackSignal, CoopBattleState } from "@/types/battle";
+import type { BossAttackSignal, CoopBattleState, PlayerAttackSignal } from "@/types/battle";
 
 export type ExplorationInteraction = {
   npcId: string;
@@ -11,13 +11,16 @@ export type ExplorationInteraction = {
 
 type GameEventMap = {
   sync: CoopBattleState;
-  attack: { playerIndex: number; kind: "strong" | "magic" };
+  attack: Omit<PlayerAttackSignal, "id">;
   bossAttack: Omit<BossAttackSignal, "id">;
   special: { coop: boolean; skillName: string };
   specialComplete: undefined;
   move: { direction: "left" | "right" | "up" | "down"; active: boolean };
   dash: undefined;
   fieldAttack: { enemyId: string };
+  fieldEnemyThreat: { enemyId: string; enemyName: string } | null;
+  fieldDodge: { enemyId: string };
+  fieldDefenseResolved: { outcome: "dodge" | "hit"; damage: number };
   explorationProgress: { collected: number; total: number; bridgeCrossed?: boolean; secretDiscovered?: boolean; npcTalked?: boolean; chestOpened?: boolean; nextDirection?: "왼쪽" | "오른쪽" | "위쪽" | "아래쪽" | "도착"; zonePage?: 1 | 2; fieldEnemiesDefeated?: number; fieldEnemiesTotal?: number };
   explorationComplete: undefined;
   interactionAvailable: ExplorationInteraction | null;

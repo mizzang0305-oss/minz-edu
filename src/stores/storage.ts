@@ -3,8 +3,8 @@ import { normalizeLearningStage } from "@/learning/stages";
 import { getWeeklyLearningGoals } from "@/learning/curriculumCatalog";
 import type { TrainingAttemptRecord } from "@/types/curriculum";
 import { GAME_DATA_CHANGED_EVENT } from "@/services/online/gameStateSync";
-import { SHOP_ITEMS, getCharacter, getSkill } from "@/types/loadout";
-import type { EquipmentId, SkillId } from "@/types/loadout";
+import { SHOP_ITEMS, getCharacter, getSkill, getUpgradeCost, isSkillCompatible, isWeaponCompatible, normalizeUpgradeLevel } from "@/types/loadout";
+import type { EquipmentId, SkillId, UpgradeableItemId, UpgradeLevel } from "@/types/loadout";
 
 export const STORAGE_KEY = "minz-learning-game";
 export const ACTIVE_CHILD_PROFILE_KEY = "minz-active-child-profile";
@@ -60,6 +60,10 @@ export function activateChildProfile(
     };
     initial.inventory.ownedItemIds = Array.from(new Set([...initial.inventory.ownedItemIds, character.defaultSkillId]));
     initial.inventory.unlockedSkillIds = Array.from(new Set([...initial.inventory.unlockedSkillIds, character.defaultSkillId]));
+    initial.inventory.ownedItemIds = Array.from(new Set([...initial.inventory.ownedItemIds, character.defaultWeaponId]));
+    initial.inventory.equippedWeaponId = character.defaultWeaponId;
+    initial.inventory.upgradeLevels[character.defaultSkillId] = 1;
+    initial.inventory.upgradeLevels[character.defaultWeaponId] = 1;
     window.localStorage.setItem(storageKey, JSON.stringify(initial));
   }
   window.dispatchEvent(new Event(ACTIVE_CHILD_CHANGED_EVENT));
@@ -113,7 +117,7 @@ export const DEFAULT_SETTINGS: ParentSettings = {
 
 export function createDefaultGameData(): StoredGameData {
   return {
-    version: 6,
+    version: 7,
     playerProfile: { displayName: "민표", schoolLevel: "elementary", grade: 2, characterId: "thunder-sword" },
     parentSettings: DEFAULT_SETTINGS,
     battleProgress: { lastPhase: "INTRO" },
@@ -124,6 +128,7 @@ export function createDefaultGameData(): StoredGameData {
       ownedItemIds: ["training-sword", "thunder-strike"],
       equippedWeaponId: "training-sword",
       unlockedSkillIds: ["thunder-strike"],
+      upgradeLevels: { "training-sword": 1, "thunder-strike": 1 },
     },
     rewardHistory: [],
     opinionEntries: [],
@@ -150,7 +155,7 @@ export function parseStoredGameData(raw: string | null): StoredGameData {
   if (!raw) return createDefaultGameData();
   try {
     const parsed = JSON.parse(raw) as Partial<Omit<StoredGameData, "version">> & { version?: number };
-    if (![1, 2, 3, 4, 5, 6].includes(parsed.version ?? 0)) return createDefaultGameData();
+    if (![1, 2, 3, 4, 5, 6, 7].includes(parsed.version ?? 0)) return createDefaultGameData();
     const defaults = createDefaultGameData();
     const rawSettings = { ...defaults.parentSettings, ...(parsed.parentSettings ?? {}) };
     const playerStage = normalizeLearningStage(rawSettings.schoolLevel, rawSettings.grade);
@@ -168,7 +173,9 @@ export function parseStoredGameData(raw: string | null): StoredGameData {
       friendSchoolLevel: friendStage.schoolLevel,
       friendGrade: friendStage.grade,
       characterId: character.id,
-      selectedSkillId: selectedSkill.id as SkillId,
+      selectedSkillId: isSkillCompatible(character.id, selectedSkill.id as SkillId)
+        ? selectedSkill.id as SkillId
+        : character.defaultSkillId,
     };
     const starterSkillId = getCharacter(parentSettings.characterId).defaultSkillId;
     const rawPlayer = { ...defaults.playerProfile, ...(parsed.playerProfile ?? {}) };
@@ -194,6 +201,17 @@ export function parseStoredGameData(raw: string | null): StoredGameData {
     };
     const inventoryCandidate = parsed.inventory as unknown;
     const rawInventory: Record<string, unknown> = isRecord(inventoryCandidate) ? inventoryCandidate : {};
+    const starterWeaponId = character.defaultWeaponId;
+    const ownedItemIds = Array.from(new Set([
+      ...safeArray<EquipmentId | SkillId>(rawInventory.ownedItemIds, defaults.inventory.ownedItemIds)
+        .filter((id) => SHOP_ITEMS.some((item) => item.id === id)),
+      starterSkillId,
+      starterWeaponId,
+    ]));
+    const rawUpgradeLevels = isRecord(rawInventory.upgradeLevels) ? rawInventory.upgradeLevels : {};
+    const upgradeLevels = Object.fromEntries(
+      ownedItemIds.map((itemId) => [itemId, normalizeUpgradeLevel(rawUpgradeLevels[itemId])]),
+    ) as Partial<Record<UpgradeableItemId, UpgradeLevel>>;
     const numberForest = normalizeStage("number-forest");
     const storedWordIsland = normalizeStage("word-island");
     const wordIsland = numberForest.status === "cleared" && storedWordIsland.status === "locked"
@@ -206,23 +224,24 @@ export function parseStoredGameData(raw: string | null): StoredGameData {
     return {
       ...defaults,
       ...parsed,
-      version: 6,
+      version: 7,
       parentSettings,
       playerProfile: { ...rawPlayer, ...profileStage, characterId: getCharacter(rawPlayer.characterId).id },
       friendProfiles,
       inventory: {
         coins: typeof rawInventory.coins === "number" && Number.isFinite(rawInventory.coins) ? Math.max(0, rawInventory.coins) : defaults.inventory.coins,
         badges: safeArray<string>(rawInventory.badges),
-        ownedItemIds: Array.from(new Set([...safeArray<EquipmentId | SkillId>(rawInventory.ownedItemIds, defaults.inventory.ownedItemIds)
-          .filter((id) => SHOP_ITEMS.some((item) => item.id === id)), starterSkillId])),
+        ownedItemIds,
         equippedWeaponId: SHOP_ITEMS.some((item) => item.type === "weapon" && item.id === rawInventory.equippedWeaponId)
+          && isWeaponCompatible(parentSettings.characterId, rawInventory.equippedWeaponId as EquipmentId)
           ? rawInventory.equippedWeaponId as EquipmentId
-          : defaults.inventory.equippedWeaponId,
+          : starterWeaponId,
         ...(SHOP_ITEMS.some((item) => item.type === "armor" && item.id === rawInventory.equippedArmorId)
           ? { equippedArmorId: rawInventory.equippedArmorId as EquipmentId }
           : {}),
         unlockedSkillIds: Array.from(new Set([...safeArray<SkillId>(rawInventory.unlockedSkillIds, defaults.inventory.unlockedSkillIds)
           .filter((id) => SHOP_ITEMS.some((item) => item.type === "skill" && item.id === id)), starterSkillId])),
+        upgradeLevels,
       },
       conceptProgress: isRecord(parsed.conceptProgress) ? parsed.conceptProgress as StoredGameData["conceptProgress"] : defaults.conceptProgress,
       rewardHistory: safeArray<AdventureRecord>(parsed.rewardHistory),
@@ -275,24 +294,38 @@ export function saveSettings(settings: ParentSettings): StoredGameData {
     selectedLearningGoalId,
   };
   const selectedCharacter = getCharacter(normalizedSettings.characterId);
-  const friendProfiles = normalizedSettings.mode === "local-shared-screen"
-    ? [{ id: "friend-local", displayName: normalizedSettings.friendName, schoolLevel: normalizedSettings.friendSchoolLevel, grade: normalizedSettings.friendGrade, role: normalizedSettings.friendRole }]
+  const compatibleSettings = {
+    ...normalizedSettings,
+    selectedSkillId: isSkillCompatible(selectedCharacter.id, normalizedSettings.selectedSkillId)
+      ? normalizedSettings.selectedSkillId
+      : selectedCharacter.defaultSkillId,
+  };
+  const friendProfiles = compatibleSettings.mode === "local-shared-screen"
+    ? [{ id: "friend-local", displayName: compatibleSettings.friendName, schoolLevel: compatibleSettings.friendSchoolLevel, grade: compatibleSettings.friendGrade, role: compatibleSettings.friendRole }]
     : current.friendProfiles;
   const next: StoredGameData = {
     ...current,
-    version: 6,
-    playerProfile: { displayName: normalizedSettings.playerName, schoolLevel: normalizedSettings.schoolLevel, grade: normalizedSettings.grade, characterId: normalizedSettings.characterId },
-    parentSettings: normalizedSettings,
+    version: 7,
+    playerProfile: { displayName: compatibleSettings.playerName, schoolLevel: compatibleSettings.schoolLevel, grade: compatibleSettings.grade, characterId: compatibleSettings.characterId },
+    parentSettings: compatibleSettings,
     inventory: {
       ...current.inventory,
-      ownedItemIds: Array.from(new Set([...current.inventory.ownedItemIds, selectedCharacter.defaultSkillId])),
+      ownedItemIds: Array.from(new Set([...current.inventory.ownedItemIds, selectedCharacter.defaultSkillId, selectedCharacter.defaultWeaponId])),
       unlockedSkillIds: Array.from(new Set([...current.inventory.unlockedSkillIds, selectedCharacter.defaultSkillId])),
+      equippedWeaponId: isWeaponCompatible(selectedCharacter.id, current.inventory.equippedWeaponId)
+        ? current.inventory.equippedWeaponId
+        : selectedCharacter.defaultWeaponId,
+      upgradeLevels: {
+        ...current.inventory.upgradeLevels,
+        [selectedCharacter.defaultSkillId]: current.inventory.upgradeLevels[selectedCharacter.defaultSkillId] ?? 1,
+        [selectedCharacter.defaultWeaponId]: current.inventory.upgradeLevels[selectedCharacter.defaultWeaponId] ?? 1,
+      },
     },
     friendProfiles,
-    localCoopSettings: { enabled: normalizedSettings.mode === "local-shared-screen" },
+    localCoopSettings: { enabled: compatibleSettings.mode === "local-shared-screen" },
     accessibilitySettings: {
-      soundEnabled: normalizedSettings.soundVolume > 0,
-      shakeIntensity: normalizedSettings.shakeIntensity,
+      soundEnabled: compatibleSettings.soundVolume > 0,
+      shakeIntensity: compatibleSettings.shakeIntensity,
     },
   };
   writeGameData(next);
@@ -509,6 +542,7 @@ export function purchaseShopItem(itemId: string): { ok: boolean; message: string
       unlockedSkillIds: item.type === "skill"
         ? Array.from(new Set([...current.inventory.unlockedSkillIds, item.id as SkillId]))
         : current.inventory.unlockedSkillIds,
+      upgradeLevels: { ...current.inventory.upgradeLevels, [item.id]: 1 },
     },
   };
   writeGameData(next);
@@ -519,6 +553,7 @@ export function equipItem(itemId: string): StoredGameData {
   const current = readGameData();
   const item = SHOP_ITEMS.find((candidate) => candidate.id === itemId);
   if (!item || item.type === "skill" || !current.inventory.ownedItemIds.includes(item.id)) return current;
+  if (item.type === "weapon" && !isWeaponCompatible(current.playerProfile.characterId, item.id as EquipmentId)) return current;
   const next: StoredGameData = {
     ...current,
     inventory: {
@@ -530,9 +565,35 @@ export function equipItem(itemId: string): StoredGameData {
   return next;
 }
 
+export function upgradeOwnedItem(itemId: string): { ok: boolean; message: string; data: StoredGameData } {
+  const current = readGameData();
+  const item = SHOP_ITEMS.find((candidate) => candidate.id === itemId);
+  if (!item || !current.inventory.ownedItemIds.includes(item.id)) {
+    return { ok: false, message: "먼저 상점에서 장비나 스킬을 획득해 주세요.", data: current };
+  }
+  const currentLevel = normalizeUpgradeLevel(current.inventory.upgradeLevels[item.id]);
+  const cost = getUpgradeCost(item.id, currentLevel);
+  if (cost === null) return { ok: false, message: `${item.name}은 이미 최고 레벨입니다.`, data: current };
+  if (current.inventory.coins < cost) {
+    return { ok: false, message: `강화하려면 모험 코인이 ${cost - current.inventory.coins}개 더 필요합니다.`, data: current };
+  }
+  const nextLevel = (currentLevel + 1) as UpgradeLevel;
+  const next: StoredGameData = {
+    ...current,
+    inventory: {
+      ...current.inventory,
+      coins: current.inventory.coins - cost,
+      upgradeLevels: { ...current.inventory.upgradeLevels, [item.id]: nextLevel },
+    },
+  };
+  writeGameData(next);
+  return { ok: true, message: `${item.name} 강화 성공! Lv.${nextLevel}이 되었습니다.`, data: next };
+}
+
 export function selectBattleSkill(skillId: string): StoredGameData {
   const current = readGameData();
-  if (!current.inventory.unlockedSkillIds.includes(skillId as SkillId)) return current;
+  if (!current.inventory.unlockedSkillIds.includes(skillId as SkillId)
+    || !isSkillCompatible(current.playerProfile.characterId, skillId as SkillId)) return current;
   const next: StoredGameData = {
     ...current,
     parentSettings: { ...current.parentSettings, selectedSkillId: skillId as SkillId },
@@ -545,12 +606,22 @@ export function selectCharacter(characterId: string): StoredGameData {
   const current = readGameData();
   const character = getCharacter(characterId);
   const unlockedSkillIds = Array.from(new Set([...current.inventory.unlockedSkillIds, character.defaultSkillId]));
-  const ownedItemIds = Array.from(new Set([...current.inventory.ownedItemIds, character.defaultSkillId]));
+  const ownedItemIds = Array.from(new Set([...current.inventory.ownedItemIds, character.defaultSkillId, character.defaultWeaponId]));
   const next: StoredGameData = {
     ...current,
     playerProfile: { ...current.playerProfile, characterId: character.id },
     parentSettings: { ...current.parentSettings, characterId: character.id, selectedSkillId: character.defaultSkillId },
-    inventory: { ...current.inventory, unlockedSkillIds, ownedItemIds },
+    inventory: {
+      ...current.inventory,
+      unlockedSkillIds,
+      ownedItemIds,
+      equippedWeaponId: character.defaultWeaponId,
+      upgradeLevels: {
+        ...current.inventory.upgradeLevels,
+        [character.defaultSkillId]: current.inventory.upgradeLevels[character.defaultSkillId] ?? 1,
+        [character.defaultWeaponId]: current.inventory.upgradeLevels[character.defaultWeaponId] ?? 1,
+      },
+    },
   };
   writeGameData(next);
   return next;

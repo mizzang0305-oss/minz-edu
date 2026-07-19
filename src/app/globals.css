@@ -884,6 +884,15 @@ body:has(.battle-page.combat-mode) .app-header { display: none; }
 .functional-inventory-grid p,.game-shop-grid p { margin: 0; color: #a8c8d1; line-height: 1.55; }
 .functional-inventory-grid button,.game-shop-grid button { min-height: 52px; margin-top: 10px; border: 0; border-radius: 12px; color: #09243a; background: #ffdb68; font-weight: 1000; cursor: pointer; }
 .functional-inventory-grid button:disabled,.game-shop-grid button:disabled { color: #879aa1; background: #314d5a; cursor: default; }
+.inventory-item-level { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.inventory-item-level span { color: #70e1f5; font-size: 11px; font-weight: 1000; letter-spacing: .12em; }
+.inventory-item-level strong { padding: 5px 9px; border-radius: 999px; color: #342000; background: #ffd968; font-size: 12px; }
+.upgrade-effect { min-height: 34px; color: #8ff1ff; font-size: 12px; font-weight: 900; line-height: 1.45; }
+.item-element-label { width: max-content; padding: 5px 9px; border: 1px solid rgba(255,220,111,.45); border-radius: 999px; color: #ffe59a; background: rgba(52,22,65,.72); font-size: 11px; font-weight: 1000; }
+.inventory-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.functional-inventory-grid .inventory-card-actions button { min-width: 0; padding: 7px; }
+.functional-inventory-grid .inventory-card-actions .upgrade-button { color: #fff; background: linear-gradient(135deg,#9c3fd4,#5b45d8); }
+.functional-inventory-grid .inventory-card-actions .upgrade-button:disabled { color: #879aa1; background: #314d5a; }
 .badge-vault { margin-top: 28px; padding: 22px; border: 1px solid rgba(255,218,104,.35); border-radius: 18px; background: rgba(10,45,62,.72); }
 .badge-vault div { display: flex; flex-wrap: wrap; gap: 9px; }
 .badge-vault span { padding: 9px 12px; border-radius: 999px; color: #fff0a3; background: rgba(0,0,0,.22); }
@@ -905,8 +914,29 @@ body:has(.battle-page.combat-mode) .app-header { display: none; }
 .battle-skill-selector button { min-height: 78px; padding: 12px; display: grid; gap: 4px; border: 2px solid #76ddec; border-radius: 13px; color: #08253b; background: #fff0a9; cursor: pointer; }
 .battle-skill-selector button strong { font-size: 16px; }
 .battle-skill-selector button small { line-height: 1.35; }
+.direct-attack-control { width: min(820px,100%); margin-left: auto; padding: 18px; color: white; border: 2px solid #ffe071; border-radius: 18px; background: linear-gradient(145deg,rgba(4,26,43,.98),rgba(45,20,66,.97)); box-shadow: 0 18px 44px rgba(0,0,0,.5); }
+.direct-attack-control h2 { margin: 5px 0; color: #fff1a3; font-size: clamp(22px,3vw,32px); }
+.direct-attack-control > p { margin: 0 0 10px; color: #c7e6ec; font-size: 14px; line-height: 1.45; }
+.direct-skill-row { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.direct-skill-row button { min-height: 58px; padding: 9px; display: grid; gap: 3px; border: 2px solid #4b92a4; border-radius: 12px; color: #dffaff; background: #103b53; cursor: pointer; text-align: left; }
+.direct-skill-row button.selected { border-color: #ffe071; color: #2d1c00; background: #fff0a9; box-shadow: 0 0 0 3px rgba(255,224,113,.2); }
+.direct-skill-row button strong { font-size: 14px; }
+.direct-skill-row button small { overflow: hidden; font-size: 10px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.direct-attack-button { width: 100%; min-height: 94px; margin-top: 10px; position: relative; overflow: hidden; display: grid; place-content: center; gap: 2px; touch-action: manipulation; user-select: none; -webkit-user-select: none; border: 3px solid #fff3aa; border-radius: 18px; color: #271400; background: linear-gradient(180deg,#fff27d,#ff9d2e); box-shadow: 0 8px 0 #9e3a16,0 15px 30px rgba(0,0,0,.38); cursor: pointer; }
+.direct-attack-button span { position: relative; z-index: 2; font-size: clamp(31px,5vw,48px); font-weight: 1000; letter-spacing: -.03em; }
+.direct-attack-button small { position: relative; z-index: 2; font-size: 12px; font-weight: 1000; }
+.direct-attack-button:active,.direct-attack-button.charging { transform: translateY(5px); box-shadow: 0 3px 0 #9e3a16,0 8px 20px rgba(0,0,0,.35); }
+.direct-attack-button::after { content: ""; position: absolute; z-index: 1; inset: 0; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg,#ff6f32,#ffef65,#7ff7ff); opacity: .8; }
+.direct-attack-button.charging::after { animation: direct-charge-fill .55s linear forwards; }
+.direct-attack-button.charged { color: #fff; border-color: #d6fbff; background: #9d35d9; box-shadow: 0 4px 0 #4e1d72,0 0 28px rgba(121,239,255,.65); }
+@keyframes direct-charge-fill { to { transform: scaleX(1); } }
 .rpg-world-object-prompt.is-enemy { border-color: #ff9d72; background: linear-gradient(135deg,rgba(76,24,25,.98),rgba(142,54,28,.96)); }
 .rpg-world-object-prompt.is-enemy .rpg-prompt-key { color: #38120b; background: #ffd166; }
+.field-defense-prompt { min-width: 210px; min-height: 78px; padding: 10px 18px; position: absolute; z-index: 18; left: 50%; bottom: 18%; display: grid; place-content: center; gap: 2px; transform: translateX(-50%); touch-action: manipulation; border: 3px solid #fff1a3; border-radius: 18px; color: #fff; background: linear-gradient(145deg,#ef5b35,#9e263e); box-shadow: 0 7px 0 #551524,0 12px 28px rgba(0,0,0,.42); cursor: pointer; animation: field-defense-pulse .45s ease-in-out infinite alternate; }
+.field-defense-prompt strong { font-size: 27px; line-height: 1; }
+.field-defense-prompt small { font-size: 10px; font-weight: 900; }
+.field-defense-prompt:active { transform: translate(-50%,5px); box-shadow: 0 2px 0 #551524; }
+@keyframes field-defense-pulse { to { filter: brightness(1.2); scale: 1.04; } }
 .battle-page.explore-mode .rpg-world-dpad { position: fixed; z-index: 160; left: max(14px,var(--safe-left)); bottom: max(14px,var(--safe-bottom)); }
 .rpg-quest-overlay span { font-size: 11px; }
 .rpg-quest-overlay strong { font-size: 18px; }
@@ -944,6 +974,18 @@ body:has(.battle-page.combat-mode) .app-header { display: none; }
   .training-fullscreen .training-choices { grid-template-columns: 1fr; }
   .training-fullscreen .training-choices button { min-height: 58px; }
   .training-safety { margin: 0; font-size: 12px; }
+  .direct-attack-control { padding: 9px; border-radius: 13px; }
+  .direct-attack-control h2 { margin: 2px 0; font-size: 18px; }
+  .direct-attack-control > p { margin-bottom: 5px; font-size: 10px; }
+  .direct-skill-row { gap: 5px; }
+  .direct-skill-row button { min-height: 44px; padding: 5px 6px; }
+  .direct-skill-row button strong { font-size: 11px; }
+  .direct-skill-row button small { font-size: 8px; }
+  .direct-attack-button { min-height: 62px; margin-top: 6px; border-radius: 13px; }
+  .direct-attack-button span { font-size: 27px; }
+  .direct-attack-button small { font-size: 9px; }
+  .field-defense-prompt { min-width: 170px; min-height: 58px; bottom: 10%; padding: 7px 12px; }
+  .field-defense-prompt strong { font-size: 21px; }
 }
 
 @media (max-width: 760px) {
@@ -954,4 +996,6 @@ body:has(.battle-page.combat-mode) .app-header { display: none; }
   .status-window-title { align-items: stretch; flex-direction: column; }
   .status-window-title a { text-align: center; }
   .battle-skill-selector > div { grid-template-columns: 1fr; }
+  .inventory-card-actions { grid-template-columns: 1fr; }
+  .direct-skill-row { grid-template-columns: 1fr; }
 }

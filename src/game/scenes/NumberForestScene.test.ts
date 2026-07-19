@@ -189,8 +189,28 @@ describe("NumberForestScene special effect lifecycle", () => {
       add: { star: vi.fn(), text: vi.fn().mockReturnValue(callout) },
     });
 
-    const playAttack = scene.playAttack as (playerIndex: number, kind: "strong" | "magic") => void;
-    playAttack.call(scene, 0, "strong");
+    const playAttack = scene.playAttack as (attack: {
+      playerIndex: number;
+      style: "slash";
+      element: "thunder";
+      delivery: "melee";
+      charged: boolean;
+      damage: number;
+      hitStopMs: 70;
+      weaponLevel: 1;
+      skillLevel: 1;
+    }) => void;
+    playAttack.call(scene, {
+      playerIndex: 0,
+      style: "slash",
+      element: "thunder",
+      delivery: "melee",
+      charged: false,
+      damage: 24,
+      hitStopMs: 70,
+      weaponLevel: 1,
+      skillLevel: 1,
+    });
 
     expect(tweenAdd).not.toHaveBeenCalled();
     expect(boss.setTint).toHaveBeenCalledWith(0x64e7f7);

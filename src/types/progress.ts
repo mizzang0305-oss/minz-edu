@@ -1,7 +1,7 @@
 import type { BattleMode, CoopMetrics, PlayerRole } from "./battle";
 import type { SchoolLevel } from "./learning";
 import type { AcademicSemester, LearningGoalProgress, TrainingAttemptRecord } from "./curriculum";
-import type { CharacterId, EquipmentId, SkillId } from "./loadout";
+import type { CharacterId, EquipmentId, SkillId, UpgradeableItemId, UpgradeLevel } from "./loadout";
 import type { MisconceptionTagCounts } from "@/learning/misconceptionTags";
 
 export type ParentSettings = {
@@ -92,7 +92,7 @@ export type CoopObservationRecord = {
 };
 
 export type StoredGameData = {
-  version: 6;
+  version: 7;
   playerProfile: { displayName: string; schoolLevel: SchoolLevel; grade: number; characterId: CharacterId };
   parentSettings: ParentSettings;
   battleProgress: { lastPhase: string; lastPlayedAt?: string };
@@ -104,6 +104,7 @@ export type StoredGameData = {
     equippedWeaponId: EquipmentId;
     equippedArmorId?: EquipmentId;
     unlockedSkillIds: SkillId[];
+    upgradeLevels: Partial<Record<UpgradeableItemId, UpgradeLevel>>;
   };
   rewardHistory: AdventureRecord[];
   opinionEntries: Array<{ id: string; text: string; createdAt: string }>;

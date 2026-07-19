@@ -80,7 +80,8 @@ describe("BattleClient learning goal binding", () => {
     const user = userEvent.setup();
 
     expect(screen.getByText(/씨앗 파동 (준비|접근)/)).toBeInTheDocument();
-    expect(screen.getByText(/정답이면 자동 회피 후 반격/)).toBeInTheDocument();
+    expect(screen.getByText(/정답을 맞히면 직접 공격 버튼/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /공격! 짧게/ })).not.toBeInTheDocument();
 
     await user.click(await screen.findByRole("button", { name: "5" }));
     expect(screen.getByText(/보호막이 막아 줬어. 다시 회피해 보자!/)).toBeInTheDocument();
@@ -89,9 +90,11 @@ describe("BattleClient learning goal binding", () => {
 
     await user.click(screen.getByRole("button", { name: "50" }));
     expect(screen.getByText(/50, 회피 성공!/)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "어떤 스킬로 반격할까?" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "스킬을 고르고 직접 공격!" })).toBeInTheDocument();
     expect(screen.getAllByText(/공격을 피한 뒤 반격/).length).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: /번개 베기/ }));
+    expect(screen.getByRole("button", { name: /공격! 짧게/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /공격! 짧게/ }));
     expect(await screen.findByRole("heading", { name: "407과 470 중 더 큰 수는?" })).toBeInTheDocument();
   });
 
@@ -134,5 +137,16 @@ describe("BattleClient learning goal binding", () => {
     render(<BattleClient />);
 
     expect(await screen.findByText("보호막 35")).toBeInTheDocument();
+  });
+
+  it("강화한 방어구가 더 큰 시작 보호막을 준다", async () => {
+    const data = createDefaultGameData();
+    data.inventory.ownedItemIds.push("forest-armor");
+    data.inventory.equippedArmorId = "forest-armor";
+    data.inventory.upgradeLevels["forest-armor"] = 5;
+    writeGameData(data);
+    render(<BattleClient />);
+
+    expect(await screen.findByText("보호막 55")).toBeInTheDocument();
   });
 });
