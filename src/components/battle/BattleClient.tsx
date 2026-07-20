@@ -380,7 +380,7 @@ export function BattleClient() {
   };
 
   return (
-    <main className={combatActive ? `battle-page combat-mode ${questionScreenActive ? "question-mode" : "skill-mode"}` : "battle-page explore-mode"}>
+    <main className={combatActive ? `battle-page combat-mode game-screen-shell ${questionScreenActive ? "question-mode" : "skill-mode"}` : "battle-page explore-mode game-screen-shell"}>
       <AdventureProgress current="battle" />
       <div className="battle-topline"><div><span className="eyebrow">{primaryProfile.stageLabel} · 위협도 {stageMap.boss.threatTier}</span><h1>{battle.players.length === 2 ? `둘의 힘으로 ${stageMap.boss.name}의 혼란을 풀어라` : `${stageMap.boss.name} 상대 학습 작전을 시작하자`}</h1></div><Link className="quiet-link" href="/world">모험 지도</Link></div>
       <div className={combatActive ? "battle-layout is-combat" : "battle-layout is-exploring"}>

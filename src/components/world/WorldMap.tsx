@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AdventureProgress } from "@/components/common/AdventureProgress";
+import { GameScreenNav } from "@/components/common/GameScreenNav";
 import { readGameData } from "@/stores/storage";
 import type { StoredGameData } from "@/types/progress";
 import { findLearningGoal, getWeeklyLearningGoals } from "@/learning/curriculumCatalog";
@@ -47,8 +47,8 @@ export function WorldMap() {
   const subjectLabel = selectedGoal?.subject === "english" ? "ENGLISH QUEST" : selectedGoal?.subject === "korean" ? "LANGUAGE QUEST" : "NUMBER QUEST";
 
   return (
-    <div className="world-shell rpg-world-shell">
-      <AdventureProgress current="world" />
+    <div className="world-shell rpg-world-shell game-screen-shell">
+      <GameScreenNav current="world" />
       <section className="world-command-deck">
         <div className="world-player-card">
           <span className="player-level">LV. {String(level).padStart(2, "0")}</span>
@@ -62,7 +62,8 @@ export function WorldMap() {
         </div>
       </section>
 
-      <section className="world-map-hero">
+      <div className="world-screen-main">
+        <section className="world-map-hero">
         <div className="world-map-copy">
           <span className="map-zone-code">WEEK {selectedGoal?.week ?? 1} · {subjectLabel}</span>
           <h1>{playerName},<br /><em>{selectedGoal?.unitTitle ?? "숫자 숲"}</em> 모험 시작!</h1>
@@ -76,14 +77,10 @@ export function WorldMap() {
           {coop && <Image className="map-friend-unit" src="/game-assets/duelyst/hero-magic.webp" alt="" width="420" height="304" />}
           <Image className={`map-boss-unit threat-${selectedStageMap.boss.threatTier}`} src={selectedStageMap.boss.asset} alt="" width={selectedStageMap.boss.exploreSize.width} height={selectedStageMap.boss.exploreSize.height} />
         </div>
-      </section>
+        </section>
 
-      <section className="hero-status-window" aria-label="캐릭터 상태"><div className="status-window-title"><span>STATUS</span><h2>{playerName} · LV.{level}</h2><Link href="/inventory">장비·상점 열기</Link></div><div className="status-window-grid"><article><span>직업</span><strong>{character.job}</strong><small>{character.name}</small></article><article><span>무기</span><strong>{weapon?.name ?? "장비 없음"}</strong><small>인벤토리에서 교체</small></article><article><span>방어구</span><strong>{armor?.name ?? "장비 없음"}</strong><small>오답 보호막 보조</small></article><article><span>선택 스킬</span><strong>{skill.name}</strong><small>{skill.description}</small></article><article><span>현재 학습</span><strong>{selectedGoal ? `${selectedGoal.week}주차` : "미선택"}</strong><small>{selectedGoal?.title ?? "목표를 선택하세요"}</small></article><article><span>진행</span><strong>{selectedGoal && data?.learningGoalProgress[selectedGoal.id]?.status === "mastered" ? "완료" : "도전 중"}</strong><small>완료 목표 {masteredGoals}개</small></article></div></section>
-
-      <section className="world-learning-command">
-        <div><span>오늘의 경로</span><h2>{selectedGoal ? `${selectedGoal.week}주차 · ${selectedGoal.title}` : "주별 목표를 먼저 골라요"}</h2><p>아는 내용은 진단 후 건너뛰고, 필요한 목표만 모험하거나 훈련할 수 있어요.</p></div>
-        <div><Link className="primary-button" href={startHref}>선택 목표 시작</Link><Link className="secondary-button" href={selectedGoal ? `/training?goal=${selectedGoal.id}` : "/training"}>훈련장</Link></div>
-      </section>
+        <section className="hero-status-window" aria-label="캐릭터 상태"><div className="status-window-title"><span>STATUS</span><h2>{playerName} · LV.{level}</h2><Link href="/inventory">장비·상점</Link></div><div className="status-window-grid"><article><span>직업</span><strong>{character.job}</strong><small>{character.name}</small></article><article><span>무기</span><strong>{weapon?.name ?? "장비 없음"}</strong><small>인벤토리에서 교체</small></article><article><span>방어구</span><strong>{armor?.name ?? "장비 없음"}</strong><small>오답 보호막 보조</small></article><article><span>선택 스킬</span><strong>{skill.name}</strong><small>{skill.description}</small></article><article><span>현재 학습</span><strong>{selectedGoal ? `${selectedGoal.week}주차` : "미선택"}</strong><small>{selectedGoal?.title ?? "목표를 선택하세요"}</small></article><article><span>진행</span><strong>{selectedGoal && data?.learningGoalProgress[selectedGoal.id]?.status === "mastered" ? "완료" : "도전 중"}</strong><small>완료 목표 {masteredGoals}개</small></article></div></section>
+      </div>
 
       <section className="rpg-stage-route" aria-label="모험 장소 목록">
         <article className={stage1Cleared ? "rpg-stage-card completed-stage" : "rpg-stage-card active-stage"}>

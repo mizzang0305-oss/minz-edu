@@ -787,6 +787,303 @@ body:has(.battle-page.combat-mode) .app-header { display: none; }
   .game-intro-replay { top: max(76px,calc(64px + var(--safe-top) + 12px)); right: max(10px,var(--safe-right)); }
 }
 
+/* One-screen game shell: every play surface except settings stays inside the viewport. */
+body:has(.game-screen-shell) { overflow: hidden; background: #061522; }
+body:has(.game-screen-shell) .app-header { display: none; }
+.game-screen-shell { box-sizing: border-box; }
+.game-screen-nav {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(108,222,241,.28);
+  border-radius: 10px 22px 10px 22px;
+  color: #ecfbff;
+  background: linear-gradient(90deg,rgba(5,27,44,.98),rgba(15,65,83,.94));
+  box-shadow: 0 8px 22px rgba(0,0,0,.24);
+}
+.game-screen-nav > div { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+.game-screen-nav a { min-height: 36px; padding: 7px 13px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 8px 15px 8px 15px; color: #bcd8e1; font-size: 12px; font-weight: 900; text-decoration: none; white-space: nowrap; }
+.game-screen-nav a:hover,.game-screen-nav a:focus-visible,.game-screen-nav a.is-current { color: #17243a; border-color: #fff1a3; background: linear-gradient(135deg,#ffe273,#ffac3e); outline: none; }
+.game-screen-brand { grid-auto-flow: column; gap: 8px; color: #fff !important; background: transparent !important; }
+.game-screen-brand span { width: 28px; height: 28px; display: grid; place-items: center; border: 2px solid #79e8f9; border-radius: 8px 14px 8px 14px; color: #ffe274; font: 1000 15px Arial,sans-serif; }
+.game-screen-brand strong { font: 1000 11px Arial,sans-serif; letter-spacing: .12em; }
+
+/* World, status and stage selection. */
+.rpg-world-shell.game-screen-shell {
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  min-height: 100dvh;
+  padding: max(8px,var(--safe-top)) max(8px,var(--safe-right)) max(8px,var(--safe-bottom)) max(8px,var(--safe-left));
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 44px 64px minmax(0,1fr) minmax(140px,19vh);
+  gap: 8px;
+}
+.rpg-world-shell.game-screen-shell > * { width: min(1440px,100%); max-width: 1440px; min-width: 0; margin: 0 auto; }
+.rpg-world-shell .world-command-deck { height: 64px; margin: 0 auto; gap: 8px; }
+.rpg-world-shell .world-player-card { min-width: 290px; height: 64px; padding-left: 76px; }
+.rpg-world-shell .world-player-card img { width: 88px; }
+.rpg-world-shell .world-resource-bar > span { padding: 6px 10px; }
+.world-screen-main { min-height: 0; display: grid; grid-template-columns: minmax(0,1.55fr) minmax(330px,.75fr); gap: 8px; }
+.world-screen-main .world-map-hero { width: 100%; max-width: none; height: 100%; min-height: 0; margin: 0; border-radius: 12px 34px 12px 34px; }
+.world-screen-main .world-map-copy { width: 53%; padding: clamp(14px,2.2vw,30px); }
+.world-screen-main .world-map-copy h1 { margin: 7px 0; font-size: clamp(28px,4.2vh,50px); }
+.world-screen-main .world-map-copy p { margin: 6px 0; font-size: 11px; line-height: 1.45; }
+.world-screen-main .quest-objectives { margin-top: 8px; padding: 8px 11px; }
+.world-screen-main .map-quick-start { min-height: 36px; margin-top: 7px; padding: 7px 12px; }
+.world-screen-main .quiet-link { font-size: 10px; }
+.world-screen-main .map-hero-unit { width: clamp(150px,21vw,270px); }
+.world-screen-main .map-friend-unit { width: clamp(140px,19vw,240px); }
+.world-screen-main .map-boss-unit { width: clamp(190px,27vw,340px); }
+.world-screen-main .hero-status-window { min-width: 0; height: 100%; min-height: 0; margin: 0; padding: 10px; overflow: hidden; border-radius: 12px 28px 12px 28px; }
+.world-screen-main .status-window-title { min-height: 34px; margin-bottom: 7px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px; }
+.world-screen-main .status-window-title h2 { margin: 0; font-size: 17px; }
+.world-screen-main .status-window-title a { min-height: 32px; padding: 6px 9px; display: grid; place-items: center; font-size: 10px; }
+.world-screen-main .status-window-grid { height: calc(100% - 41px); min-height: 0; grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: repeat(3,minmax(0,1fr)); gap: 6px; }
+.world-screen-main .status-window-grid article { min-height: 0; padding: 7px 9px; gap: 2px; }
+.world-screen-main .status-window-grid span { font-size: 8px; }
+.world-screen-main .status-window-grid strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.world-screen-main .status-window-grid small { overflow: hidden; font-size: 9px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.rpg-world-shell.game-screen-shell .rpg-stage-route { height: 100%; min-height: 0; margin: 0 auto; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.rpg-world-shell.game-screen-shell .route-connector { display: none; }
+.rpg-world-shell.game-screen-shell .rpg-stage-card { min-height: 0; height: 100%; padding: 9px; grid-template-columns: 34px minmax(0,1fr); grid-template-rows: minmax(0,1fr) 38px; gap: 4px 7px; border-radius: 8px 20px 8px 20px; }
+.rpg-world-shell.game-screen-shell .stage-card-art { width: 105px; height: 78px; right: -12px; top: -7px; }
+.rpg-world-shell.game-screen-shell .stage-number strong { font-size: 28px; }
+.rpg-world-shell.game-screen-shell .stage-card-copy h2 { margin: 3px 0; font-size: 14px; }
+.rpg-world-shell.game-screen-shell .stage-card-copy p,.rpg-world-shell.game-screen-shell .stage-card-copy ul { display: none; }
+.rpg-world-shell.game-screen-shell .stage-enter-button { min-height: 36px; margin: 0; padding: 4px 9px; }
+.rpg-world-shell.game-screen-shell .stage-enter-button strong { font-size: 12px; }
+.rpg-world-shell.game-screen-shell .stage-lock { right: 9px; bottom: 9px; }
+
+/* Inventory and shop. Only four cards are mounted per page. */
+.game-inventory-page.game-screen-shell {
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  min-height: 100dvh;
+  padding: max(8px,var(--safe-top)) max(8px,var(--safe-right)) max(8px,var(--safe-bottom)) max(8px,var(--safe-left));
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 44px 72px 30px 74px 42px minmax(0,1fr) 40px;
+  gap: 6px;
+}
+.game-inventory-page.game-screen-shell > * { width: min(1400px,100%); max-width: 1400px; min-width: 0; margin: 0 auto; }
+.game-inventory-page.game-screen-shell .inventory-hero { min-height: 0; height: 72px; padding: 8px 18px; display: grid; grid-template-columns: minmax(0,1fr) 120px auto; align-items: center; border-radius: 10px 26px 10px 26px; }
+.game-inventory-page.game-screen-shell .inventory-hero h1 { margin: 2px 0; font-size: clamp(21px,3vw,33px); }
+.game-inventory-page.game-screen-shell .inventory-hero p { margin: 0; font-size: 10px; line-height: 1.3; }
+.game-inventory-page.game-screen-shell .inventory-hero > img { width: 118px; height: 82px; align-self: end; object-fit: contain; }
+.game-inventory-page.game-screen-shell .coin-display { min-width: 118px; margin: 0; padding: 6px 12px; text-align: center; }
+.game-inventory-page.game-screen-shell .coin-display strong { font-size: 20px; }
+.game-inventory-page.game-screen-shell .inventory-message { min-height: 0; margin: 0 auto; padding: 5px 12px; overflow: hidden; border-left: 3px solid #ffd768; color: #d6edf3; background: rgba(10,49,67,.78); font-size: 10px; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.game-inventory-page.game-screen-shell .loadout-summary { height: 74px; min-height: 0; margin: 0 auto; padding: 6px; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; border-radius: 10px 24px 10px 24px; }
+.game-inventory-page.game-screen-shell .loadout-summary article { min-height: 0; padding: 7px 10px; gap: 2px; }
+.game-inventory-page.game-screen-shell .loadout-summary span { font-size: 8px; }
+.game-inventory-page.game-screen-shell .loadout-summary strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.game-inventory-page.game-screen-shell .loadout-summary small { overflow: hidden; font-size: 9px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.inventory-panel-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.inventory-panel-tabs button { min-height: 42px; border: 1px solid #4c8397; border-radius: 8px 18px 8px 18px; color: #b7d7e0; background: rgba(5,28,44,.88); font-weight: 1000; cursor: pointer; }
+.inventory-panel-tabs button span { margin-left: 5px; color: #ffe179; }
+.inventory-panel-tabs button.is-active { color: #17243a; border-color: #fff1a3; background: linear-gradient(135deg,#ffe273,#ffac3e); }
+.inventory-panel-tabs button.is-active span { color: #61320c; }
+.inventory-screen-content { min-height: 0; overflow: hidden; }
+.inventory-screen-content > .functional-inventory-grid,.inventory-screen-content > .game-shop-grid { height: 100%; min-height: 0; margin: 0; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+.inventory-screen-content .functional-inventory-grid article,.inventory-screen-content .game-shop-grid article,.inventory-screen-content .empty-shop { min-height: 0; height: 100%; padding: clamp(9px,1.3vw,16px); align-content: center; gap: 5px; border-radius: 9px 22px 9px 22px; }
+.inventory-screen-content .functional-inventory-grid h3,.inventory-screen-content .game-shop-grid h3 { overflow: hidden; font-size: clamp(15px,1.7vw,21px); text-overflow: ellipsis; white-space: nowrap; }
+.inventory-screen-content .functional-inventory-grid p,.inventory-screen-content .game-shop-grid p { margin: 0; overflow: hidden; display: -webkit-box; color: #a8c8d1; font-size: 10px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.inventory-screen-content .upgrade-effect { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.inventory-screen-content .functional-inventory-grid button,.inventory-screen-content .game-shop-grid button { min-height: 44px; margin-top: 3px; padding: 6px; font-size: 10px; }
+.inventory-screen-content .inventory-card-actions { gap: 5px; }
+.inventory-pager { display: grid; grid-template-columns: 100px 1fr 100px; align-items: center; gap: 8px; }
+.inventory-pager button { min-height: 38px; border: 1px solid #5f9db1; border-radius: 8px 16px 8px 16px; color: #e7faff; background: #103c53; font-weight: 900; cursor: pointer; }
+.inventory-pager button:disabled { opacity: .4; cursor: default; }
+.inventory-pager strong { color: #ffe179; text-align: center; font-size: 12px; }
+
+/* Training question. */
+.training-fullscreen.game-screen-shell {
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  min-height: 100dvh;
+  padding: max(8px,var(--safe-top)) max(8px,var(--safe-right)) max(8px,var(--safe-bottom)) max(8px,var(--safe-left));
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  overflow: hidden;
+  grid-template-rows: 44px 90px minmax(0,1fr);
+  gap: 8px;
+  background: #071724 radial-gradient(circle at 25% 20%,rgba(30,163,190,.24),transparent 35%);
+}
+.training-fullscreen.game-screen-shell > * { width: min(1400px,100%); max-width: 1400px; min-width: 0; margin: 0 auto; }
+.training-fullscreen.game-screen-shell .training-header { min-height: 0; padding: 10px 18px; border-radius: 10px 26px 10px 26px; }
+.training-fullscreen.game-screen-shell .training-header h1 { margin: 2px 0; font-size: clamp(23px,3.7vh,38px); }
+.training-fullscreen.game-screen-shell .training-header p { overflow: hidden; font-size: 11px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.training-fullscreen.game-screen-shell .training-arena { width: min(1400px,100%); height: 100%; min-height: 0; margin: 0 auto; padding: clamp(12px,2.5vw,28px); gap: 18px; overflow: hidden; border-radius: 14px 30px 14px 30px; }
+.training-fullscreen.game-screen-shell .training-guardian { min-height: 0; font-size: clamp(100px,20vh,190px); }
+.training-fullscreen.game-screen-shell .training-question { max-height: 100%; padding: clamp(14px,2.2vw,26px); overflow: hidden; }
+.training-fullscreen.game-screen-shell .training-question h2 { margin: 5px 0 12px; font-size: clamp(25px,5vh,46px); }
+.training-fullscreen.game-screen-shell .training-choices { gap: 8px; }
+.training-fullscreen.game-screen-shell .training-choices button { min-height: 52px; font-size: clamp(18px,3.5vh,30px); }
+.training-fullscreen.game-screen-shell .training-feedback { min-height: 22px; margin: 8px 0 0; overflow: hidden; font-size: 11px; line-height: 1.35; }
+.training-fullscreen.game-screen-shell .training-safety { display: none; }
+
+/* Exploration uses the full game viewport too. */
+.battle-page.explore-mode.game-screen-shell { width: 100%; max-width: none; height: 100dvh; min-height: 100dvh; padding: 8px; position: fixed; z-index: 100; inset: 0; overflow: hidden; display: grid; grid-template-rows: 58px minmax(0,1fr); gap: 8px; background: #061522; }
+.battle-page.explore-mode.game-screen-shell > .adventure-progress { display: none; }
+.battle-page.explore-mode.game-screen-shell .battle-topline { min-height: 0; margin: 0; padding: 7px 12px; align-items: center; color: #f3fbff; border: 1px solid rgba(108,222,241,.28); border-radius: 10px 22px 10px 22px; background: rgba(5,28,44,.94); }
+.battle-page.explore-mode.game-screen-shell .battle-topline h1 { margin: 1px 0; font-size: clamp(16px,2.5vw,25px); }
+.battle-page.explore-mode.game-screen-shell .battle-layout.is-exploring,.battle-page.explore-mode.game-screen-shell .battle-main,.battle-page.explore-mode.game-screen-shell .battle-visual { height: 100%; min-height: 0; }
+.battle-page.explore-mode.game-screen-shell .battle-layout.is-exploring { grid-template-columns: 1fr; }
+.battle-page.explore-mode.game-screen-shell .battle-layout.is-exploring > .gauge-panel { display: none; }
+.battle-page.explore-mode.game-screen-shell .battle-visual { display: grid; grid-template-rows: minmax(0,1fr) auto; }
+.battle-page.explore-mode.game-screen-shell .rpg-play-stage,.battle-page.explore-mode.game-screen-shell .phaser-stage { width: 100%; height: 100%; min-height: 0; aspect-ratio: auto; }
+.battle-page.explore-mode.game-screen-shell .battle-message { margin: -54px 14px 8px; color: #f3fbff; border: 1px solid rgba(103,232,249,.38); background: rgba(5,30,48,.92); }
+
+/* Questions stay beside the live battle instead of replacing it. */
+.battle-page.question-mode .rpg-play-stage,.battle-page.question-mode .battle-momentum-hud { opacity: 1; pointer-events: auto; }
+.battle-page.question-mode .rpg-play-stage { width: 46%; right: auto; }
+.battle-page.question-mode .rpg-play-stage .phaser-stage { width: 100%; height: auto; max-height: 100%; aspect-ratio: 29/16; }
+.battle-page.question-mode .battle-exit-button { z-index: 34; }
+.battle-page.question-mode .battle-overlay-dock.is-combat {
+  width: min(720px,54vw);
+  max-height: calc(100% - 58px);
+  padding: 0;
+  position: absolute;
+  z-index: 31;
+  inset: 50px 8px 8px auto;
+  display: grid;
+  grid-template-rows: auto minmax(0,1fr);
+  align-content: end;
+  gap: 6px;
+  color: white;
+  background: transparent;
+}
+.battle-page.question-mode .battle-message { width: 100%; min-height: 46px; max-height: 58px; margin: 0; padding: 6px 9px; font-size: 11px; }
+.battle-page.question-mode .battle-message-copy small { display: -webkit-box; overflow: hidden; font-size: 9px; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
+.battle-page.question-mode .battle-command-console { width: 100%; height: auto; max-height: 100%; margin: 0; padding: 9px 11px 10px; place-content: start; overflow: hidden; }
+.battle-page.question-mode .battle-command-console .choice-mission h2 { margin: 3px 0; font-size: clamp(17px,2.7vw,26px); line-height: 1.15; }
+.battle-page.question-mode .battle-command-console .choice-mission p { margin: 2px 0; font-size: 10px; line-height: 1.3; }
+.battle-page.question-mode .battle-command-console .choice-grid:not(.vertical) { gap: 6px; margin: 6px 0 2px; }
+.battle-page.question-mode .battle-command-console .choice-grid button { min-height: 44px; padding: 6px; font-size: clamp(16px,2.4vw,22px); }
+.battle-page.question-mode .battle-command-console .help-row { gap: 4px; }
+.battle-page.question-mode .battle-command-console .help-row button,.battle-page.question-mode .battle-command-console .hint-button { min-height: 44px; padding: 5px; font-size: 9px; }
+
+@media (min-height: 521px) {
+  .battle-page.question-mode .battle-command-console { align-content: center; }
+}
+
+@media (max-height: 520px) {
+  .game-screen-nav { min-height: 38px; padding: 1px 4px; }
+  .game-screen-nav a { min-height: 34px; padding: 5px 10px; font-size: 10px; }
+  .game-screen-brand span { width: 25px; height: 25px; }
+  .rpg-world-shell.game-screen-shell { padding: 4px max(6px,var(--safe-right)) 4px max(6px,var(--safe-left)); grid-template-rows: 38px 52px minmax(0,1fr) 96px; gap: 4px; }
+  .rpg-world-shell .world-command-deck,.rpg-world-shell .world-player-card { height: 52px; }
+  .rpg-world-shell .world-player-card { min-width: 245px; padding-left: 63px; }
+  .rpg-world-shell .world-player-card img { width: 74px; }
+  .rpg-world-shell .world-player-card strong { font-size: 16px; }
+  .rpg-world-shell .world-resource-bar > span { padding: 3px 6px; grid-template-columns: 20px 1fr; }
+  .rpg-world-shell .world-resource-bar i { font-size: 14px; }
+  .world-screen-main { grid-template-columns: minmax(0,1.45fr) minmax(290px,.8fr); gap: 4px; }
+  .world-screen-main .world-map-copy { padding: 8px 12px; }
+  .world-screen-main .world-map-copy h1 { margin: 3px 0; font-size: clamp(20px,7vh,29px); }
+  .world-screen-main .world-map-copy p,.world-screen-main .quiet-link,.world-screen-main .quest-objectives small { display: none; }
+  .world-screen-main .quest-objectives { margin-top: 4px; padding: 4px 7px; }
+  .world-screen-main .map-quick-start { min-height: 32px; margin-top: 4px; padding: 4px 9px; }
+  .world-screen-main .hero-status-window { padding: 5px; }
+  .world-screen-main .status-window-title { min-height: 26px; margin-bottom: 3px; }
+  .world-screen-main .status-window-title h2 { font-size: 13px; }
+  .world-screen-main .status-window-title a { min-height: 26px; padding: 3px 6px; font-size: 8px; }
+  .world-screen-main .status-window-grid { height: calc(100% - 29px); gap: 3px; }
+  .world-screen-main .status-window-grid article { padding: 3px 5px; }
+  .world-screen-main .status-window-grid small { display: none; }
+  .rpg-world-shell.game-screen-shell .rpg-stage-card { padding: 5px 7px; grid-template-columns: 26px minmax(0,1fr); grid-template-rows: minmax(0,1fr) 30px; }
+  .rpg-world-shell.game-screen-shell .stage-card-art { width: 74px; height: 55px; }
+  .rpg-world-shell.game-screen-shell .stage-number strong { font-size: 21px; }
+  .rpg-world-shell.game-screen-shell .stage-card-copy h2 { font-size: 11px; }
+  .rpg-world-shell.game-screen-shell .stage-enter-button { min-height: 30px; padding: 2px 6px; }
+  .rpg-world-shell.game-screen-shell .stage-enter-button strong { font-size: 10px; }
+  .rpg-world-shell.game-screen-shell .stage-enter-button small { display: none; }
+
+  .game-inventory-page.game-screen-shell { padding: 4px max(6px,var(--safe-right)) 4px max(6px,var(--safe-left)); grid-template-rows: 38px 44px 24px 48px 34px minmax(0,1fr) 32px; gap: 4px; }
+  .game-inventory-page.game-screen-shell .inventory-hero { height: 44px; padding: 3px 10px; grid-template-columns: minmax(0,1fr) 70px 90px; }
+  .game-inventory-page.game-screen-shell .inventory-hero h1 { font-size: 18px; }
+  .game-inventory-page.game-screen-shell .inventory-hero p,.game-inventory-page.game-screen-shell .inventory-hero .eyebrow { display: none; }
+  .game-inventory-page.game-screen-shell .inventory-hero > img { width: 70px; height: 48px; }
+  .game-inventory-page.game-screen-shell .coin-display { min-width: 0; padding: 2px 6px; }
+  .game-inventory-page.game-screen-shell .coin-display strong { font-size: 15px; }
+  .game-inventory-page.game-screen-shell .coin-display span { font-size: 8px; }
+  .game-inventory-page.game-screen-shell .inventory-message { padding: 2px 8px; line-height: 20px; }
+  .game-inventory-page.game-screen-shell .loadout-summary { height: 48px; padding: 3px; }
+  .game-inventory-page.game-screen-shell .loadout-summary article { padding: 3px 6px; }
+  .game-inventory-page.game-screen-shell .loadout-summary small { display: none; }
+  .inventory-panel-tabs button { min-height: 34px; }
+  .inventory-screen-content > .functional-inventory-grid,.inventory-screen-content > .game-shop-grid { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; }
+  .inventory-screen-content .functional-inventory-grid article,.inventory-screen-content .game-shop-grid article { padding: 6px; gap: 2px; }
+  .inventory-screen-content .functional-inventory-grid h3,.inventory-screen-content .game-shop-grid h3 { font-size: 13px; }
+  .inventory-screen-content .functional-inventory-grid p,.inventory-screen-content .game-shop-grid p { -webkit-line-clamp: 1; }
+  .inventory-screen-content .item-element-label,.inventory-screen-content .upgrade-effect { display: none; }
+  .inventory-screen-content .functional-inventory-grid button,.inventory-screen-content .game-shop-grid button { min-height: 44px; margin: 0; padding: 3px; font-size: 8px; }
+  .inventory-screen-content .inventory-item-level { font-size: 8px; }
+  .inventory-screen-content .inventory-card-actions { grid-template-columns: 1fr 1fr; gap: 3px; }
+  .inventory-pager { grid-template-columns: 72px 1fr 72px; }
+  .inventory-pager button { min-height: 32px; }
+
+  .training-fullscreen.game-screen-shell { padding: 4px max(6px,var(--safe-right)) 4px max(6px,var(--safe-left)); grid-template-rows: 38px 52px minmax(0,1fr); gap: 4px; }
+  .training-fullscreen.game-screen-shell .training-header { padding: 5px 10px; }
+  .training-fullscreen.game-screen-shell .training-header h1 { font-size: 19px; }
+  .training-fullscreen.game-screen-shell .training-header p { display: none; }
+  .training-fullscreen.game-screen-shell .training-arena { grid-template-columns: 1fr; padding: 7px; gap: 0; }
+  .training-fullscreen.game-screen-shell .training-guardian { display: none; }
+  .training-fullscreen.game-screen-shell .training-question { padding: 8px 12px; }
+  .training-fullscreen.game-screen-shell .training-question h2 { margin: 2px 0 6px; font-size: clamp(20px,7vh,28px); }
+  .training-fullscreen.game-screen-shell .training-choices { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 5px; }
+  .training-fullscreen.game-screen-shell .training-choices button { min-height: 44px; padding: 5px; font-size: 18px; }
+  .training-fullscreen.game-screen-shell .hint-button,.training-fullscreen.game-screen-shell .training-next-button { min-height: 40px; padding: 5px 10px; }
+  .training-fullscreen.game-screen-shell .training-feedback { margin-top: 4px; font-size: 9px; }
+
+  .battle-page.question-mode .battle-overlay-dock.is-combat { width: min(460px,55vw); max-height: calc(100% - 48px); inset: 42px 6px 6px auto; gap: 4px; }
+  .battle-page.question-mode .battle-message { min-height: 42px; max-height: 48px; padding: 4px 7px; }
+  .battle-page.question-mode .guide-avatar { width: 28px; height: 28px; }
+  .battle-page.question-mode .battle-command-console { padding: 6px 8px 7px; }
+  .battle-page.question-mode .battle-command-console .choice-mission h2 { font-size: 16px; }
+  .battle-page.question-mode .battle-command-console .choice-grid button { min-height: 44px; font-size: 17px; }
+  .battle-page.question-mode .battle-command-console .help-row button { min-height: 40px; }
+}
+
+@media (max-width: 700px) and (orientation: portrait) {
+  .game-screen-brand strong { display: none; }
+  .game-screen-nav { gap: 4px; }
+  .game-screen-nav a { padding: 5px 7px; font-size: 9px; }
+  .world-screen-main { grid-template-columns: 1fr; grid-template-rows: minmax(0,1.2fr) minmax(0,.8fr); }
+  .world-screen-main .world-map-copy { width: 58%; }
+  .rpg-world-shell .world-resource-bar { display: none; }
+  .rpg-world-shell .world-player-card { width: 100%; }
+  .rpg-world-shell.game-screen-shell { grid-template-rows: 44px 60px minmax(0,1fr) 142px; }
+  .rpg-world-shell.game-screen-shell .rpg-stage-route { gap: 4px; }
+  .rpg-world-shell.game-screen-shell .rpg-stage-card { grid-template-columns: 1fr; grid-template-rows: minmax(0,1fr) 38px; }
+  .rpg-world-shell.game-screen-shell .stage-number { justify-items: start; }
+  .rpg-world-shell.game-screen-shell .stage-card-copy { position: absolute; left: 33px; top: 9px; }
+  .rpg-world-shell.game-screen-shell .stage-card-art { display: none; }
+  .rpg-world-shell.game-screen-shell .stage-enter-button { grid-column: 1; }
+  .game-inventory-page.game-screen-shell { grid-template-rows: 44px 64px 28px 68px 40px minmax(0,1fr) 38px; }
+  .game-inventory-page.game-screen-shell .inventory-hero { height: 64px; grid-template-columns: minmax(0,1fr) 70px 84px; }
+  .game-inventory-page.game-screen-shell .loadout-summary { height: 68px; }
+  .inventory-screen-content > .functional-inventory-grid,.inventory-screen-content > .game-shop-grid { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: repeat(2,minmax(0,1fr)); }
+  .battle-page.question-mode .battle-overlay-dock.is-combat { width: calc(100% - 12px); max-height: 54%; inset: auto 6px 6px; }
+  .battle-page.question-mode .battle-momentum-hud { top: 6px; }
+}
+
 @media (max-width: 900px) and (max-height: 520px) and (orientation: landscape) {
   .game-intro-card { width: 100%; min-height: 100dvh; grid-template-columns: 42% 58%; grid-template-rows: 1fr; border: 0; border-radius: 0; }
   .game-intro-art { border-right: 1px solid rgba(117,224,243,.18); border-bottom: 0; }
@@ -941,19 +1238,6 @@ body:has(.battle-page.combat-mode) .app-header { display: none; }
 .rpg-quest-overlay span { font-size: 11px; }
 .rpg-quest-overlay strong { font-size: 18px; }
 .rpg-quest-overlay small { font-size: 11px; }
-
-/* On a small screen, solve the question first in a dedicated readable view. */
-.battle-page.question-mode .landscape-play-gate { display: none; }
-.battle-page.question-mode .rpg-play-stage,.battle-page.question-mode .battle-momentum-hud { opacity: 0; pointer-events: none; }
-.battle-page.question-mode .battle-exit-button { z-index: 214; }
-.battle-page.question-mode .battle-overlay-dock.is-combat { width: 100%; max-height: none; padding: max(64px,var(--safe-top)) max(18px,var(--safe-right)) max(18px,var(--safe-bottom)) max(18px,var(--safe-left)); position: fixed; z-index: 210; inset: 0; display: grid; grid-template-rows: auto minmax(0,1fr); gap: 12px; color: white; background: radial-gradient(circle at 22% 24%,#155f78,#061522 66%); }
-.battle-page.question-mode .battle-message { width: min(1000px,100%); min-height: 64px; max-height: none; margin: 0 auto; font-size: 16px; }
-.battle-page.question-mode .battle-message-copy small { display: block; font-size: 14px; -webkit-line-clamp: unset; }
-.battle-page.question-mode .battle-command-console { width: min(1000px,100%); height: 100%; max-height: none; margin: 0 auto; padding: clamp(22px,4vw,44px); place-content: center; overflow-y: auto; }
-.battle-page.question-mode .battle-command-console .choice-mission h2 { font-size: clamp(31px,5vw,58px); line-height: 1.2; }
-.battle-page.question-mode .battle-command-console .choice-mission p { font-size: clamp(16px,2vw,22px); }
-.battle-page.question-mode .battle-command-console .choice-grid button { min-height: 72px; padding: 14px; font-size: clamp(22px,3vw,34px); }
-.battle-page.question-mode .battle-command-console .help-row button,.battle-page.question-mode .battle-command-console .hint-button { min-height: 52px; font-size: 15px; }
 
 /* Keep every control inside the visual viewport without shrinking below a usable touch target. */
 @media (max-width: 640px), (max-height: 520px) {
