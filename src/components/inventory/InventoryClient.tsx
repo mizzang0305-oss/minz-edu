@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import { GameScreenNav } from "@/components/common/GameScreenNav";
 import {
   createDefaultGameData,
   equipItem,
@@ -15,9 +15,13 @@ import type { StoredGameData } from "@/types/progress";
 import { getCharacter, getSkill, getSkillElementLabel, getUpgradeCost, isSkillCompatible, isWeaponCompatible, normalizeUpgradeLevel, SHOP_ITEMS } from "@/types/loadout";
 import { describeUpgradeEffect } from "@/game/systems/LoadoutCombatSystem";
 
+const INVENTORY_PAGE_SIZE = 4;
+
 export function InventoryClient() {
   const [data, setData] = useState<StoredGameData>(createDefaultGameData());
   const [message, setMessage] = useState("가진 장비를 장착하거나 모험 코인으로 새 물품을 살 수 있어요.");
+  const [activePanel, setActivePanel] = useState<"owned" | "shop">("owned");
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setData(readGameData()), 0);
@@ -28,6 +32,10 @@ export function InventoryClient() {
   const owned = SHOP_ITEMS.filter((item) => data.inventory.ownedItemIds.includes(item.id));
   const shop = SHOP_ITEMS.filter((item) => !data.inventory.ownedItemIds.includes(item.id));
   const selectedSkill = getSkill(data.parentSettings.selectedSkillId);
+  const panelItems = activePanel === "owned" ? owned : shop;
+  const pageCount = Math.max(1, Math.ceil(panelItems.length / INVENTORY_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const visibleItems = panelItems.slice(safePage * INVENTORY_PAGE_SIZE, (safePage + 1) * INVENTORY_PAGE_SIZE);
 
   const buy = (itemId: string) => {
     const result = purchaseShopItem(itemId);
@@ -53,9 +61,19 @@ export function InventoryClient() {
     || itemId === data.inventory.equippedArmorId
     || itemId === data.parentSettings.selectedSkillId;
 
+  const openPanel = (panel: "owned" | "shop") => {
+    setActivePanel(panel);
+    setPage(0);
+  };
+
   return (
-    <main className="inventory-page game-inventory-page">
-      <section className="inventory-hero"><div><span className="eyebrow">HERO LOADOUT & SHOP</span><h1>{data.playerProfile.displayName}의 장비·스킬 상점</h1><p>보상은 진열만 되는 카드가 아니라 실제로 장착하고 전투에서 선택할 수 있습니다.</p><div className="coin-display"><strong>{data.inventory.coins}</strong><span>사용 가능한 모험 코인</span></div></div><Image src={character.asset} alt={`${character.name} ${character.job}`} width="420" height="304" loading="eager" /></section>
+    <main className="inventory-page game-inventory-page game-screen-shell">
+      <GameScreenNav current="inventory" />
+      <section className="inventory-hero">
+        <div><span className="eyebrow">HERO LOADOUT</span><h1>{data.playerProfile.displayName}의 장비·스킬</h1><p>장착, 강화, 구매를 한 화면에서 관리해요.</p></div>
+        <Image src={character.asset} alt={`${character.name} ${character.job}`} width="420" height="304" loading="eager" />
+        <div className="coin-display"><strong>{data.inventory.coins}</strong><span>모험 코인</span></div>
+      </section>
 
       <p className="inventory-message" role="status" aria-live="polite">{message}</p>
 
@@ -66,8 +84,13 @@ export function InventoryClient() {
         <article><span>선택 스킬</span><strong>{selectedSkill.name}</strong><small>{selectedSkill.description}</small></article>
       </section>
 
-      <div className="inventory-title-row"><div><span>INVENTORY</span><h2>보유 장비와 기술</h2></div><strong>{owned.length}개</strong></div>
-      <section className="functional-inventory-grid">{owned.map((item) => {
+      <div className="inventory-panel-tabs" role="tablist" aria-label="인벤토리 보기">
+        <button type="button" role="tab" aria-selected={activePanel === "owned"} className={activePanel === "owned" ? "is-active" : undefined} onClick={() => openPanel("owned")}>보유 장비 <span>{owned.length}</span></button>
+        <button type="button" role="tab" aria-selected={activePanel === "shop"} className={activePanel === "shop" ? "is-active" : undefined} onClick={() => openPanel("shop")}>코인 상점 <span>{shop.length}</span></button>
+      </div>
+
+      <section className="inventory-screen-content" role="tabpanel" aria-label={activePanel === "owned" ? "보유 장비와 기술" : "모험 포인트 상점"}>
+        {activePanel === "owned" ? <div className="functional-inventory-grid">{visibleItems.map((item) => {
         const level = normalizeUpgradeLevel(data.inventory.upgradeLevels[item.id]);
         const upgradeCost = getUpgradeCost(item.id, level);
         const compatible = item.type === "skill"
@@ -86,13 +109,14 @@ export function InventoryClient() {
             <button type="button" className="upgrade-button" disabled={upgradeCost === null || data.inventory.coins < upgradeCost} onClick={() => upgrade(item.id)}>{upgradeCost === null ? "최고 레벨" : `강화 · 🪙 ${upgradeCost}`}</button>
           </div>
         </article>;
-      })}</section>
+      })}</div> : <div className="game-shop-grid">{visibleItems.length === 0 ? <p className="empty-shop">상점의 모든 장비와 스킬을 모았습니다.</p> : visibleItems.map((item) => <article key={item.id}><span>{item.type === "weapon" ? "무기" : item.type === "armor" ? "방어구" : "스킬"}</span><h3>{item.name}</h3><p>{item.description}</p><strong>🪙 {item.cost}</strong><button type="button" disabled={data.inventory.coins < item.cost} onClick={() => buy(item.id)}>{data.inventory.coins >= item.cost ? "모험 코인으로 구매" : `${item.cost - data.inventory.coins} 코인 부족`}</button></article>)}</div>}
+      </section>
 
-      <div className="inventory-title-row"><div><span>COIN SHOP</span><h2>모험 포인트 상점</h2></div><strong>잔액 {data.inventory.coins}</strong></div>
-      <section className="game-shop-grid">{shop.length === 0 ? <p className="empty-shop">상점의 모든 장비와 스킬을 모았습니다.</p> : shop.map((item) => <article key={item.id}><span>{item.type === "weapon" ? "무기" : item.type === "armor" ? "방어구" : "스킬"}</span><h3>{item.name}</h3><p>{item.description}</p><strong>🪙 {item.cost}</strong><button type="button" disabled={data.inventory.coins < item.cost} onClick={() => buy(item.id)}>{data.inventory.coins >= item.cost ? "모험 코인으로 구매" : `${item.cost - data.inventory.coins} 코인 부족`}</button></article>)}</section>
-
-      {data.inventory.badges.length > 0 && <section className="badge-vault"><h2>모험 배지</h2><div>{data.inventory.badges.map((badge) => <span key={badge}>◆ {badge}</span>)}</div></section>}
-      <div className="inventory-actions"><Link href="/world" className="secondary-button">STATUS로 돌아가기</Link><Link href="/goals" className="primary-button">다음 문제 퀘스트</Link></div>
+      <div className="inventory-pager" aria-label="장비 목록 페이지">
+        <button type="button" disabled={safePage === 0} onClick={() => setPage(safePage - 1)}>이전</button>
+        <strong>{safePage + 1} / {pageCount}</strong>
+        <button type="button" disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)}>다음</button>
+      </div>
     </main>
   );
 }

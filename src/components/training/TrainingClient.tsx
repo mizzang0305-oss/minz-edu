@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { GameScreenNav } from "@/components/common/GameScreenNav";
 import { findLearningGoal } from "@/learning/curriculumCatalog";
 import { readGameData, saveSessionReport, saveTrainingAttempt } from "@/stores/storage";
 import type { WeeklyLearningGoal } from "@/types/curriculum";
@@ -145,7 +146,8 @@ export function TrainingClient() {
   );
 
   return (
-    <main className="training-page training-fullscreen">
+    <main className="training-page training-fullscreen game-screen-shell">
+      <GameScreenNav current="training" />
       <header className="training-header"><div><span className="eyebrow">{mode === "diagnostic" ? "이미 아는지 짧게 확인" : "부족한 부분 훈련장"}</span><h1>{goal.title}</h1><p>{goal.objective}</p></div><strong>{index + 1} / {goal.questions.length}</strong></header>
       <section className="training-arena">
         <div className="training-guardian" aria-hidden="true">◆</div>
