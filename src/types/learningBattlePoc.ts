@@ -50,19 +50,21 @@ export type ColyseusLearningRoomState = {
   revision: number;
   battle: LearningBattlePocState;
   connectedPlayerIds: string[];
+  connectionStatus: "waiting" | "ready" | "reconnecting";
 };
 
 export type ColyseusLearningClientMessages = {
-  "player:join": { playerId: string; displayName: string };
+  "player:join": { displayName: string };
   "answer:submit": { playerId: string; questionId: string; answer: string; clientSequence: number };
   "attack:request": { playerId: string; questionId: string; charged: boolean; clientSequence: number };
   "special:request": { playerId: string; clientSequence: number };
 };
 
 export type ColyseusLearningServerMessages = {
+  "player:assigned": { playerId: string; roomId: string; reconnectSeconds: number };
   "battle:snapshot": ColyseusLearningRoomState;
-  "answer:resolved": { playerId: string; questionId: string; correct: boolean; revision: number };
-  "attack:resolved": { playerId: string; damage: number; bossHp: number; revision: number };
+  "answer:resolved": { playerId: string; playerIndex: number; questionId: string; correct: boolean; revision: number };
+  "attack:resolved": { playerId: string; playerIndex: number; charged: boolean; damage: number; bossHp: number; revision: number };
   "special:resolved": { playerIds: string[]; damage: number; bossHp: number; revision: number };
   "room:error": { code: string; message: string };
 };

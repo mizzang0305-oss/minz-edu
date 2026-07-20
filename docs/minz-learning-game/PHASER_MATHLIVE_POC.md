@@ -53,18 +53,22 @@ type LearningBattleQuestion = {
 
 아이 화면에서는 `explanation`을 별도 공부 설명으로 분리하지 않고 `전투 힌트`, `약점 해독` 문맥으로 보여 준다.
 
-## 로컬 협동과 Colyseus 경계
+## 로컬 협동과 Colyseus 연결
 
 - 현재: `solo`와 `local-coop`이 같은 순수 상태 엔진을 사용한다.
 - 같은 화면 2인: 번개 검사와 불꽃 마법사가 문제마다 차례를 교대한다.
-- 향후: `ColyseusLearningRoomContract`가 클라이언트 요청과 서버 확정 이벤트를 분리한다.
-- 서버 권한 원칙: Colyseus 전환 시 답 판정, 피해량, 게이지, 보스 HP와 `revision`은 서버가 확정한다.
+- 온라인 2인: `@colyseus/sdk` 두 클라이언트가 `LearningBattleRoom`에 접속하고 각자 화면에서 같은 전투를 본다.
+- 서버 권한 원칙: 답 판정, 피해량, 게이지, 보스 HP와 `revision`은 서버가 확정한다.
 - 중복 방지: 모든 요청에 `clientSequence`, 서버 스냅샷에 `revision`을 사용한다.
+- 재접속: 비정상 종료 시 좌석과 전투 상태를 10초 보존한다.
+
+상세 실행과 검증은 [COLYSEUS_COOP_POC.md](./COLYSEUS_COOP_POC.md)를 따른다.
 
 ## 실행
 
 ```powershell
 npm install
+npm run dev:colyseus
 npm run dev
 ```
 
@@ -74,7 +78,7 @@ npm run dev
 ## 검증 체크리스트
 
 - [x] `npm run typecheck`
-- [x] `npm test` — 35개 파일, 184개 테스트 통과
+- [x] `npm test` — 37개 파일, 190개 테스트 통과
 - [x] `npm run lint`
 - [x] `npm run build`
 - [x] 데스크톱에서 Phaser Canvas가 비어 있지 않음
@@ -87,7 +91,7 @@ npm run dev
 ## 리스크
 
 - 현재 문항은 PoC용 고정 3문항이며 교사 검수 콘텐츠 저장소와 아직 연결하지 않았다.
-- Colyseus는 타입 계약만 있으며 실제 룸 서버, 재접속, 권한 검증은 구현하지 않았다.
+- Colyseus 서버는 로컬 메모리 PoC이며 공개 배포용 인증과 영속 저장소는 아직 연결하지 않았다.
 - MathLive 모바일 가상 키보드는 실제 iOS/Android 기기에서 추가 확인이 필요하다.
 
 ## 롤백
@@ -96,6 +100,6 @@ npm run dev
 
 ## 다음 작업
 
-1. Colyseus 권한형 Room 서버와 재접속/지연 시뮬레이션
-2. 문제별 시도, 힌트, 소요 시간, 오답 유형 학습 로그
+1. 문제별 시도, 힌트, 소요 시간, 오답 유형 학습 로그
+2. 보호자 세션 기반 Colyseus room ticket과 운영 관측 로그
 3. 교사 승인 문항만 사용하는 AI 문제 생성·검수 파이프라인

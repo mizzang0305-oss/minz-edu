@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:colyseus": "tsx server/colyseus/server.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -17,6 +18,10 @@
     "generate:maps": "node scripts/generate-tiled-maps.mjs"
   },
   "dependencies": {
+    "@colyseus/core": "^0.17.42",
+    "@colyseus/sdk": "^0.17.43",
+    "@colyseus/ws-transport": "^0.17.13",
+    "express": "^5.2.1",
     "firebase": "^12.16.0",
     "firebase-admin": "13.10.0",
     "mathlive": "^0.110.0",
@@ -43,6 +48,7 @@
     "eslint-config-next": "16.2.10",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5",
     "vitest": "^4.1.10"
   }
