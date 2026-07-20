@@ -1,0 +1,40 @@
+import type { LearningBattleQuestion } from "@/types/learningBattlePoc";
+
+export const GAME_POC_QUESTIONS: LearningBattleQuestion[] = [
+  {
+    id: "linear-equation-core",
+    grade: 1,
+    subject: "수학",
+    concept: "일차방정식",
+    question: "12 + 8의 값을 구해 수호자의 첫 결계를 해제해 봐!",
+    answer: "20",
+    explanation: "12에 8을 더하면 20이야. 같은 수끼리 묶어 계산하면 더 빠르게 찾을 수 있어.",
+    difficulty: "core",
+    skill_reward: 30,
+    hint: "12에서 8칸 앞으로 이동해 봐.",
+  },
+  {
+    id: "linear-equation-application",
+    grade: 1,
+    subject: "수학",
+    concept: "일차방정식",
+    question: "3x + 5 = 20일 때 x를 구해 두 번째 결계를 깨뜨려 봐!",
+    answer: "5",
+    explanation: "양쪽에서 5를 빼면 3x = 15, 양쪽을 3으로 나누면 x = 5야.",
+    difficulty: "application",
+    skill_reward: 30,
+    hint: "먼저 양쪽에서 5를 빼면 길이 보여.",
+  },
+  {
+    id: "linear-equation-deep",
+    grade: 1,
+    subject: "수학",
+    concept: "일차방정식",
+    question: "2(x + 3) = 18일 때 x를 구해 스페셜 룬을 완성해 봐!",
+    answer: "6",
+    explanation: "양쪽을 2로 나누면 x + 3 = 9, 양쪽에서 3을 빼면 x = 6이야.",
+    difficulty: "deep",
+    skill_reward: 40,
+    hint: "괄호를 풀기 전에 양쪽을 2로 나누면 간단해져.",
+  },
+];
