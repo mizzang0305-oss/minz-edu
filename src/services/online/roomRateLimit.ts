@@ -4,6 +4,8 @@ const MAX_PROFILE_MUTATIONS_PER_WINDOW = 6;
 const MAX_AUTH_MUTATIONS_PER_WINDOW = 6;
 const MAX_GAME_STATE_MUTATIONS_PER_WINDOW = 20;
 const MAX_PARENT_REPORTS_PER_WINDOW = 5;
+const MAX_ROOM_TICKETS_PER_WINDOW = 12;
+const MAX_LEARNING_LOG_MUTATIONS_PER_WINDOW = 30;
 const MAX_BUCKETS = 10_000;
 
 type Bucket = { count: number; resetAt: number };
@@ -17,7 +19,7 @@ function removeExpiredBuckets(now: number) {
 }
 
 function allowMutation(
-  scope: "room" | "profile" | "auth" | "game-state" | "parent-report",
+  scope: "room" | "profile" | "auth" | "game-state" | "parent-report" | "room-ticket" | "learning-log",
   guardianUid: string,
   maxMutations: number,
   now: number,
@@ -53,6 +55,14 @@ export function allowGameStateMutation(guardianUid: string, now = Date.now()) {
 
 export function allowParentReportDelivery(guardianUid: string, now = Date.now()) {
   return allowMutation("parent-report", guardianUid, MAX_PARENT_REPORTS_PER_WINDOW, now);
+}
+
+export function allowRoomTicketIssue(guardianUid: string, now = Date.now()) {
+  return allowMutation("room-ticket", guardianUid, MAX_ROOM_TICKETS_PER_WINDOW, now);
+}
+
+export function allowLearningLogMutation(guardianUid: string, now = Date.now()) {
+  return allowMutation("learning-log", guardianUid, MAX_LEARNING_LOG_MUTATIONS_PER_WINDOW, now);
 }
 
 export function resetOnlineMutationRateLimitsForTests() {

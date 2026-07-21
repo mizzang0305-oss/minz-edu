@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PhaserStage } from "@/components/game/PhaserStage";
 import { MathLiveAnswerField } from "./MathLiveAnswerField";
 import { GAME_POC_QUESTIONS } from "@/data/gamePocQuestions";
+import {
+  ColyseusLearningClient,
+  type LearningRoomClientStatus,
+} from "@/game/online/ColyseusLearningClient";
 import {
   createLearningBattlePocState,
   POC_CHARGED_ATTACK_DAMAGE,
@@ -15,8 +19,31 @@ import {
   submitLearningBattleAnswer,
 } from "@/game/poc/LearningBattlePocEngine";
 import type { BossAttackSignal, CoopBattleState, PlayerAttackSignal } from "@/types/battle";
-import type { LearningBattleMode, LearningBattlePocState } from "@/types/learningBattlePoc";
+import type {
+  ColyseusLearningServerMessages,
+  LearningPlayerSessionLog,
+  LearningBattleMode,
+  LearningBattlePocState,
+} from "@/types/learningBattlePoc";
+import { getActiveChildProfileId } from "@/stores/storage";
+import { persistSignedLearningLog } from "@/services/online/learningLogClient";
 import styles from "./LearningBattlePoc.module.css";
+
+type PlayMode = LearningBattleMode | "online-coop";
+
+type OnlineUiState = {
+  status: LearningRoomClientStatus;
+  roomId: string;
+  playerId: string;
+  error: string;
+};
+
+const INITIAL_ONLINE_UI: OnlineUiState = {
+  status: "idle",
+  roomId: "",
+  playerId: "",
+  error: "",
+};
 
 const DIFFICULTY_LABEL = {
   core: "기본 결계",
@@ -82,28 +109,161 @@ function toPhaserBattle(state: LearningBattlePocState): CoopBattleState {
 
 export function LearningBattlePoc() {
   const [state, setState] = useState(() => createLearningBattlePocState());
+  const [playMode, setPlayMode] = useState<PlayMode>("solo");
   const [answer, setAnswer] = useState("");
+  const [roomIdInput, setRoomIdInput] = useState("");
+  const [online, setOnline] = useState<OnlineUiState>(INITIAL_ONLINE_UI);
+  const [learningLog, setLearningLog] = useState<LearningPlayerSessionLog | null>(null);
   const [attackSignal, setAttackSignal] = useState<PlayerAttackSignal | null>(null);
   const [bossAttackSignal, setBossAttackSignal] = useState<BossAttackSignal | null>(null);
   const [specialSignal, setSpecialSignal] = useState(0);
   const [specialPlaying, setSpecialPlaying] = useState(false);
   const attackId = useRef(0);
   const pressStartedAt = useRef(0);
+  const stateRef = useRef(state);
+  const onlineClientRef = useRef<ColyseusLearningClient | null>(null);
   const question = GAME_POC_QUESTIONS[state.questionIndex];
   const activePlayer = state.players[state.activePlayerIndex];
   const phaserBattle = useMemo(() => toPhaserBattle(state), [state]);
+  const onlineReady = playMode === "online-coop" && online.status === "ready";
+  const canOnlineAct = onlineReady && online.playerId === activePlayer.id;
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => () => {
+    void onlineClientRef.current?.disconnect();
+  }, []);
 
   function reset(mode: LearningBattleMode = state.mode) {
-    setState(createLearningBattlePocState(mode));
+    const next = createLearningBattlePocState(mode);
+    stateRef.current = next;
+    setState(next);
     setAnswer("");
     setAttackSignal(null);
     setBossAttackSignal(null);
     setSpecialSignal(0);
     setSpecialPlaying(false);
+    setLearningLog(null);
+  }
+
+  function selectLocalMode(mode: LearningBattleMode) {
+    void onlineClientRef.current?.disconnect();
+    onlineClientRef.current = null;
+    setOnline(INITIAL_ONLINE_UI);
+    setPlayMode(mode);
+    reset(mode);
+  }
+
+  function selectOnlineMode() {
+    if (playMode === "online-coop") return;
+    setPlayMode("online-coop");
+    reset("local-coop");
+  }
+
+  async function connectOnline(match: "create" | "join-by-id") {
+    await onlineClientRef.current?.disconnect();
+    setOnline({ ...INITIAL_ONLINE_UI, status: "connecting" });
+    const childProfileId = getActiveChildProfileId();
+    const client = new ColyseusLearningClient({
+      onAssigned: (payload) => {
+        setOnline((current) => ({
+          ...current,
+          playerId: payload.playerId,
+          roomId: payload.roomId,
+          error: "",
+        }));
+      },
+      onSnapshot: (payload) => {
+        stateRef.current = payload.battle;
+        setState(payload.battle);
+        setOnline((current) => ({
+          ...current,
+          status: payload.connectionStatus,
+          roomId: payload.roomId,
+          error: "",
+        }));
+      },
+      onAnswer: playAnswerResolution,
+      onAttack: playAttackResolution,
+      onSpecial: () => {
+        setSpecialPlaying(true);
+        setSpecialSignal((value) => value + 1);
+        navigator.vibrate?.([45, 30, 70]);
+      },
+      onLearningLog: ({ log, receipt }) => {
+        setLearningLog(log);
+        void persistSignedLearningLog(childProfileId, receipt).catch(() => undefined);
+      },
+      onStatus: (status) => setOnline((current) => ({ ...current, status })),
+      onError: (message) => {
+        setSpecialPlaying(false);
+        setOnline((current) => ({ ...current, status: current.status === "connecting" ? "error" : current.status, error: message }));
+      },
+    });
+    onlineClientRef.current = client;
+    try {
+      const connectedRoomId = await client.connect({
+        childProfileId,
+        match,
+        roomId: roomIdInput,
+      });
+      setOnline((current) => ({ ...current, roomId: connectedRoomId }));
+    } catch {
+      if (onlineClientRef.current === client) onlineClientRef.current = null;
+    }
+  }
+
+  async function leaveOnlineRoom() {
+    const client = onlineClientRef.current;
+    onlineClientRef.current = null;
+    await client?.disconnect();
+    setOnline(INITIAL_ONLINE_UI);
+    setPlayMode("solo");
+    reset("solo");
+  }
+
+  function playAnswerResolution(payload: ColyseusLearningServerMessages["answer:resolved"]) {
+    if (payload.correct) return;
+    attackId.current += 1;
+    setBossAttackSignal({
+      id: attackId.current,
+      targetPlayerIndex: payload.playerIndex,
+      outcome: "hit",
+      attackName: "결계 반격",
+    });
+    navigator.vibrate?.([28, 20, 28]);
+  }
+
+  function playAttackResolution(payload: ColyseusLearningServerMessages["attack:resolved"]) {
+    const attacker = stateRef.current.players[payload.playerIndex];
+    if (!attacker) return;
+    attackId.current += 1;
+    const mage = attacker.characterId === "flame-mage";
+    setAttackSignal({
+      id: attackId.current,
+      playerIndex: payload.playerIndex,
+      style: mage ? "magic" : "slash",
+      element: mage ? "fire" : "thunder",
+      delivery: mage ? "projectile" : "melee",
+      charged: payload.charged,
+      damage: payload.damage,
+      hitStopMs: 70,
+      weaponLevel: 1,
+      skillLevel: 1,
+    });
+    navigator.vibrate?.(payload.charged ? [35, 24, 55] : [24]);
   }
 
   function submitAnswer() {
     if (!answer.trim() || state.phase !== "question") return;
+    if (playMode === "online-coop") {
+      if (!canOnlineAct) return;
+      onlineClientRef.current?.sendAnswer(question.id, answer);
+      setAnswer("");
+      return;
+    }
     const next = submitLearningBattleAnswer(state, answer);
     if (next.feedback.kind === "wrong") {
       attackId.current += 1;
@@ -121,6 +281,11 @@ export function LearningBattlePoc() {
 
   function attack(charged: boolean) {
     if (state.phase !== "attack-ready") return;
+    if (playMode === "online-coop") {
+      if (!canOnlineAct) return;
+      onlineClientRef.current?.sendAttack(question.id, charged);
+      return;
+    }
     attackId.current += 1;
     const mage = activePlayer.characterId === "flame-mage";
     setAttackSignal({
@@ -143,11 +308,23 @@ export function LearningBattlePoc() {
   function activateSpecial() {
     if (state.phase !== "special-ready" || specialPlaying) return;
     setSpecialPlaying(true);
+    if (playMode === "online-coop") {
+      if (!canOnlineAct) {
+        setSpecialPlaying(false);
+        return;
+      }
+      onlineClientRef.current?.sendSpecial();
+      return;
+    }
     setSpecialSignal((value) => value + 1);
     navigator.vibrate?.([45, 30, 70]);
   }
 
   function finishSpecial() {
+    if (playMode === "online-coop") {
+      setSpecialPlaying(false);
+      return;
+    }
     setState((current) => resolveLearningBattleSpecial(current));
     setSpecialPlaying(false);
   }
@@ -160,9 +337,12 @@ export function LearningBattlePoc() {
           <span><small>PHASER LEARNING BATTLE</small><strong>민즈 결계전</strong></span>
         </div>
         <div className={styles.modeControls} role="group" aria-label="플레이 모드">
-          <button type="button" className={state.mode === "solo" ? styles.selected : ""} onClick={() => reset("solo")}>1인</button>
-          <button type="button" className={state.mode === "local-coop" ? styles.selected : ""} onClick={() => reset("local-coop")}>같은 화면 2인</button>
-          <button type="button" onClick={() => reset()}>다시 시작</button>
+          <button type="button" className={playMode === "solo" ? styles.selected : ""} onClick={() => selectLocalMode("solo")}>1인</button>
+          <button type="button" className={playMode === "local-coop" ? styles.selected : ""} onClick={() => selectLocalMode("local-coop")}>같은 화면 2인</button>
+          <button type="button" className={playMode === "online-coop" ? styles.selected : ""} onClick={selectOnlineMode}>온라인 2인</button>
+          {playMode === "online-coop" && online.roomId
+            ? <button type="button" onClick={() => void leaveOnlineRoom()}>방 나가기</button>
+            : <button type="button" onClick={() => reset()}>다시 시작</button>}
         </div>
       </header>
 
@@ -194,7 +374,10 @@ export function LearningBattlePoc() {
                   height={30}
                   alt=""
                 />
-                <div><strong>{player.displayName}</strong><small>HP {player.hp} · 보호막 {player.shield}</small></div>
+                <div>
+                  <strong>{player.displayName}{playMode === "online-coop" && online.playerId === player.id ? " · 나" : ""}</strong>
+                  <small>HP {player.hp} · 보호막 {player.shield}</small>
+                </div>
               </article>
             ))}
           </div>
@@ -206,7 +389,39 @@ export function LearningBattlePoc() {
             <Gauge label="스킬 게이지" value={state.skillGauge} tone="skill" />
           </div>
 
-          {state.phase !== "complete" ? (
+          {playMode === "online-coop" && (online.status === "idle" || online.status === "error") ? (
+            <div className={styles.onlineLobby}>
+              <span>ONLINE CO-OP</span>
+              <h1>친구와 각자 화면에서 결계전</h1>
+              <p>한 명이 방을 만들고, 친구가 표시된 방 ID로 참가하면 전투가 시작돼.</p>
+              <p>보호자 로그인과 현재 선택된 자녀 프로필을 확인한 뒤 90초 room ticket으로 연결해.</p>
+              <div className={styles.onlineActions}>
+                <button type="button" onClick={() => void connectOnline("create")}>새 방 만들기</button>
+              </div>
+              <div className={styles.roomJoinRow}>
+                <input
+                  aria-label="참가할 방 ID"
+                  placeholder="친구 방 ID"
+                  value={roomIdInput}
+                  onChange={(event) => setRoomIdInput(event.target.value)}
+                />
+                <button type="button" disabled={!roomIdInput.trim()} onClick={() => void connectOnline("join-by-id")}>방 참가</button>
+              </div>
+              {online.error && <p className={styles.onlineError} role="alert">{online.error}</p>}
+              <small>로컬 PoC 서버: <code>npm run dev:colyseus</code></small>
+            </div>
+          ) : playMode === "online-coop" && !onlineReady ? (
+            <div className={styles.onlineLobby} aria-live="polite">
+              <span>{online.status === "reconnecting" ? "RECONNECTING" : "ROOM READY"}</span>
+              <h1>{online.status === "reconnecting" ? "친구 연결을 복구하는 중…" : "친구를 기다리는 중…"}</h1>
+              <p className={styles.roomCode}>{online.roomId || "방을 여는 중"}</p>
+              {online.roomId && (
+                <button type="button" onClick={() => void navigator.clipboard?.writeText(online.roomId)}>방 ID 복사</button>
+              )}
+              <small>두 플레이어가 연결되기 전에는 답과 공격이 서버에서 잠겨.</small>
+              {online.error && <p className={styles.onlineError} role="alert">{online.error}</p>}
+            </div>
+          ) : state.phase !== "complete" ? (
             <div className={styles.questionCard}>
               <div className={styles.questionMeta}>
                 <span>{question.grade}학년 · {question.subject}</span>
@@ -215,7 +430,12 @@ export function LearningBattlePoc() {
               <p className={styles.concept}>{question.concept}</p>
               <h1>{question.question}</h1>
 
-              {state.phase === "question" && (
+              {playMode === "online-coop" && !canOnlineAct ? (
+                <div className={styles.turnWait} aria-live="polite">
+                  <strong>{activePlayer.displayName}의 차례</strong>
+                  <span>친구가 결계를 풀고 공격할 때까지 전투 장면을 지켜보자.</span>
+                </div>
+              ) : state.phase === "question" ? (
                 <form onSubmit={(event) => { event.preventDefault(); submitAnswer(); }} className={styles.answerForm}>
                   <MathLiveAnswerField
                     className={styles.mathField}
@@ -238,9 +458,9 @@ export function LearningBattlePoc() {
                   </div>
                   <button type="submit" disabled={!answer.trim()}>답으로 결계 해독</button>
                 </form>
-              )}
+              ) : null}
 
-              {state.phase === "attack-ready" && (
+              {state.phase === "attack-ready" && (playMode !== "online-coop" || canOnlineAct) && (
                 <button
                   type="button"
                   className={styles.attackButton}
@@ -253,7 +473,7 @@ export function LearningBattlePoc() {
                 </button>
               )}
 
-              {state.phase === "special-ready" && (
+              {state.phase === "special-ready" && (playMode !== "online-coop" || canOnlineAct) && (
                 <button type="button" className={styles.specialButton} disabled={specialPlaying} onClick={activateSpecial}>
                   <span>{specialPlaying ? "스페셜 발동 중…" : "개념 마스터 스페셜"}</span>
                   <small>심화 룬의 힘으로 마지막 결계를 끝내자!</small>
@@ -265,14 +485,26 @@ export function LearningBattlePoc() {
               <span>STAGE CLEAR</span>
               <h1>수호자의 혼란이 풀렸어!</h1>
               <p>정답 {state.correctCount}회 · 다시 시도 {state.wrongCount}회</p>
-              <button type="button" onClick={() => reset()}>한 번 더 도전</button>
+              {playMode === "online-coop"
+                ? <button type="button" onClick={() => void leaveOnlineRoom()}>협동 방 나가기</button>
+                : <button type="button" onClick={() => reset()}>한 번 더 도전</button>}
             </div>
           )}
 
           <div className={`${styles.feedback} ${styles[state.feedback.kind]}`} aria-live="polite">
             <span>{state.feedback.kind === "wrong" ? "방어" : state.feedback.kind === "correct" ? "해독" : "전투"}</span>
-            <div><strong>{state.feedback.title}</strong><p>{state.feedback.detail}</p></div>
+            <div>
+              <strong>{online.error || state.feedback.title}</strong>
+              <p>{playMode === "online-coop" && online.roomId ? `방 ${online.roomId} · ${state.feedback.detail}` : state.feedback.detail}</p>
+            </div>
           </div>
+          {playMode === "online-coop" && learningLog && (
+            <div className={styles.learningLogCard} aria-label="내 문제별 학습 로그">
+              <strong>내 학습 로그</strong>
+              <span>시도 {learningLog.totalAttempts}회 · 힌트 {learningLog.totalHints}회 · {Math.ceil(learningLog.totalElapsedMs / 1_000)}초</span>
+              <small>원답은 저장하지 않고 문제별 시도·오답 유형만 기록해.</small>
+            </div>
+          )}
         </section>
       </div>
     </main>

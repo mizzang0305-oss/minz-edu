@@ -38,7 +38,7 @@
 .brand strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff0a8; font-size: 18px; }
 
 .modeControls { display: flex; gap: 7px; }
-.modeControls button { min-height: 40px; padding: 8px 12px; border: 1px solid #315f74; border-radius: 11px; color: #d8edf3; background: #0b2638; font-size: 12px; font-weight: 900; cursor: pointer; }
+.modeControls button { min-height: 40px; padding: 8px 12px; border: 1px solid #315f74; border-radius: 11px; color: #d8edf3; background: #0b2638; font-size: 12px; font-weight: 900; white-space: nowrap; cursor: pointer; }
 .modeControls button.selected { color: #082337; border-color: #ffe071; background: #ffe071; box-shadow: 0 3px 0 #9a651c; }
 
 .battleGrid { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.28fr) minmax(390px, .72fr); }
@@ -68,7 +68,7 @@
 .gauge i { height: 100%; display: block; border-radius: inherit; transition: width .35s ease; }
 .concept i { background: linear-gradient(90deg, #38bdf8, #67e8f9); }.skill i { background: linear-gradient(90deg, #f59e0b, #fde047); }
 
-.questionCard, .victoryCard { min-height: 0; align-self: center; padding: clamp(14px, 2.3vw, 24px); border: 1px solid rgba(103, 232, 249, .24); border-radius: 20px; background: rgba(9, 37, 53, .94); box-shadow: inset 0 1px rgba(255, 255, 255, .05), 0 18px 35px rgba(0, 0, 0, .22); }
+.questionCard, .victoryCard, .onlineLobby { min-height: 0; align-self: center; padding: clamp(14px, 2.3vw, 24px); border: 1px solid rgba(103, 232, 249, .24); border-radius: 20px; background: rgba(9, 37, 53, .94); box-shadow: inset 0 1px rgba(255, 255, 255, .05), 0 18px 35px rgba(0, 0, 0, .22); }
 .questionMeta { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .questionMeta span { color: #8edff0; font-size: 11px; font-weight: 900; }.questionMeta strong { padding: 5px 8px; border-radius: 999px; color: #19283a; background: #ffe071; font-size: 10px; }
 .concept { margin: 13px 0 5px; color: #64dff5; font: 900 10px/1.2 Arial, sans-serif; letter-spacing: .12em; text-transform: uppercase; }
@@ -92,10 +92,29 @@
 .feedback { min-height: 66px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; border: 1px solid rgba(105, 210, 232, .22); border-radius: 14px; background: rgba(7, 29, 43, .96); }
 .feedback > span { min-width: 40px; padding: 5px; border-radius: 8px; color: #092337; background: #86e7f6; text-align: center; font-size: 9px; font-weight: 950; }.feedback > div { min-width: 0; }.feedback strong { display: block; color: #fff0a6; font-size: 12px; }.feedback p { margin: 3px 0 0; color: #b9d5dd; font-size: 10px; line-height: 1.45; }
 .feedback.wrong { border-color: rgba(251, 113, 133, .52); }.feedback.correct { border-color: rgba(103, 232, 249, .6); }
+.learningLogCard { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 12px; border: 1px solid rgba(103, 232, 249, .24); border-radius: 12px; background: rgba(7, 23, 36, .78); color: #dff8ff; }
+.learningLogCard strong { color: #67e8f9; }.learningLogCard small { width: 100%; color: #91a9b6; }
 
 .victoryCard { text-align: center; background: radial-gradient(circle at top, rgba(255, 224, 113, .2), transparent 55%), rgba(9, 37, 53, .96); }
 .victoryCard > span { color: #ffe071; font: 900 11px/1 Arial, sans-serif; letter-spacing: .18em; }.victoryCard p { color: #b9d5dd; }
 .victoryCard button { width: 100%; margin-top: 10px; }
+
+.onlineLobby { display: grid; gap: 10px; }
+.onlineLobby > span { color: #67e8f9; font: 900 10px/1 Arial, sans-serif; letter-spacing: .16em; }
+.onlineLobby h1 { margin: 0; color: #fff0a8; font-size: clamp(19px, 2vw, 27px); line-height: 1.25; }
+.onlineLobby p { margin: 0; color: #b9d5dd; font-size: 11px; line-height: 1.5; }
+.onlineLobby label { display: grid; gap: 5px; color: #9dd8e5; font-size: 10px; font-weight: 900; }
+.onlineLobby input { width: 100%; min-width: 0; min-height: 46px; padding: 8px 11px; border: 1px solid #4b8296; border-radius: 11px; color: #eefcff; background: #071e2c; font-size: 13px; }
+.onlineLobby button { min-height: 46px; padding: 8px 11px; border: 1px solid #79e5f7; border-radius: 11px; color: #082337; background: #85e8f7; font-size: 11px; font-weight: 950; cursor: pointer; }
+.onlineLobby button:disabled { opacity: .4; cursor: not-allowed; }
+.onlineLobby small { color: #7da7b3; font-size: 9px; }
+.onlineLobby code { color: #ffe071; }
+.onlineActions, .roomJoinRow { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.roomJoinRow { grid-template-columns: minmax(0, 1fr) auto; }
+.roomCode { padding: 10px; border: 1px dashed #ffe071; border-radius: 10px; color: #ffe071 !important; background: rgba(255, 224, 113, .08); overflow-wrap: anywhere; text-align: center; font: 900 13px/1.3 monospace !important; }
+.onlineError { color: #fecdd3 !important; }
+.turnWait { min-height: 82px; display: grid; place-content: center; gap: 5px; border: 1px dashed #4f91a8; border-radius: 14px; text-align: center; background: rgba(5, 28, 42, .72); }
+.turnWait strong { color: #ffe071; font-size: 14px; }.turnWait span { color: #a9ccd5; font-size: 10px; }
 
 @media (max-width: 760px) and (orientation: portrait) {
   .screen { grid-template-rows: 60px minmax(0, 1fr); }
@@ -109,13 +128,14 @@
   .partyHud { left: 7px; bottom: 7px; grid-auto-flow: column; }.partyHud article { min-width: 0; padding: 5px 7px; }.partyHud article > img { width: 24px; height: 24px; }.partyHud small { display: none; }
   .commandPanel { padding: 9px; gap: 7px; }
   .gauge { padding: 6px 8px; }.gauge > div { height: 5px; }
-  .questionCard, .victoryCard { width: 100%; padding: 12px; border-radius: 15px; }
+  .questionCard, .victoryCard, .onlineLobby { width: 100%; padding: 12px; border-radius: 15px; }
   .concept { margin-top: 8px; }.questionCard h1, .victoryCard h1 { margin-bottom: 10px; font-size: clamp(16px, 4.5vw, 20px); }
   .mathField, .mathField math-field { min-height: 50px; }.mathField math-field { padding: 7px 10px; font-size: 21px; }
   .answerForm { grid-template-columns: minmax(0, 1fr) 126px; gap: 7px; }.answerForm > button { min-height: 50px; padding: 7px; grid-column: 2; grid-row: 1; font-size: 11px; }
   .quickPad { grid-column: 1 / -1; grid-row: 2; }
   .attackButton, .specialButton { min-height: 62px; }.attackButton span, .specialButton span { font-size: 16px; }
   .feedback { min-height: 57px; padding: 7px 9px; }.feedback p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .onlineLobby { gap: 7px; }.onlineLobby h1 { font-size: 17px; }.onlineLobby p { line-height: 1.35; }.onlineLobby input, .onlineLobby button { min-height: 44px; }
 }
 
 @media (max-height: 560px) and (orientation: landscape) {
@@ -128,7 +148,7 @@
   .partyHud { left: 7px; bottom: 7px; }.partyHud article { padding: 5px 7px; }.partyHud small { display: none; }
   .commandPanel { padding: 8px; gap: 6px; }
   .gauge { padding: 5px 7px; }.gauge > div { height: 4px; }
-  .questionCard, .victoryCard { padding: 10px 12px; border-radius: 14px; }
+  .questionCard, .victoryCard, .onlineLobby { padding: 10px 12px; border-radius: 14px; }
   .questionMeta span { font-size: 9px; }.questionMeta strong { padding: 3px 6px; font-size: 8px; }
   .concept { margin: 6px 0 3px; font-size: 8px; }.questionCard h1, .victoryCard h1 { margin-bottom: 7px; font-size: 16px; line-height: 1.25; }
   .answerForm { grid-template-columns: minmax(0, 1fr) 120px; gap: 7px; }
@@ -137,6 +157,8 @@
   .quickPad { grid-column: 1 / -1; grid-row: 2; }.quickPad button { min-height: 44px; }
   .attackButton, .specialButton { min-height: 58px; padding: 7px; }.attackButton span, .specialButton span { font-size: 15px; }
   .feedback { min-height: 50px; padding: 6px 8px; }.feedback > span { min-width: 36px; }.feedback strong { font-size: 10px; }.feedback p { margin-top: 1px; display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 9px; }
+  .onlineLobby { gap: 4px; padding: 7px 10px; }.onlineLobby h1 { font-size: 16px; }.onlineLobby p { line-height: 1.3; }.onlineLobby input, .onlineLobby button { min-height: 44px; }
+  .onlineLobby > p:not(.roomCode, .onlineError), .onlineLobby > small { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

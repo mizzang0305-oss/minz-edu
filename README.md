@@ -46,6 +46,17 @@ npm run dev
 
 브라우저에서 [http://localhost:3000](http://localhost:3000)을 엽니다. Firebase 운영 비밀값 없이도 로컬 게임의 기본 화면과 학습 흐름을 확인할 수 있습니다.
 
+### 로컬 실시간 2인 학습 전투 PoC
+
+별도 터미널에서 Colyseus 서버와 Next.js를 함께 실행한 뒤 `/game`에서 `온라인 2인`을 선택합니다.
+
+```powershell
+npm run dev:colyseus
+npm run dev
+```
+
+방 생성·참가, 서버 권한 판정과 10초 재접속 구조는 [COLYSEUS_COOP_POC.md](./docs/minz-learning-game/COLYSEUS_COOP_POC.md)를 참고합니다. 이 로컬 PoC는 Firebase와 Production 설정을 변경하지 않습니다.
+
 ### Firebase 온라인 기능
 
 온라인 기능은 저장소에 포함되지 않은 Firebase Web 설정과 Admin 인증정보가 필요합니다. 비밀값, 서비스 계정 키와 로컬 설정 파일은 Git에 커밋하지 않습니다.

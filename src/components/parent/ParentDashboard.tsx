@@ -8,6 +8,7 @@ import { formatLearningStage, getLearningBattleProfile } from "@/learning/stages
 import { findLearningGoal } from "@/learning/curriculumCatalog";
 import { analyzeGoalPerformance } from "@/learning/performanceAnalysis";
 import { useGameSyncStatus } from "@/components/sync/GameSyncProvider";
+import { GuardianLearningLogs } from "@/components/parent/GuardianLearningLogs";
 
 type Props = {
   onlineAccountConnected: boolean;
@@ -90,6 +91,7 @@ export function ParentDashboard({ onlineAccountConnected }: Props) {
       {latest && <section className="parent-section coop-summary"><div className="section-title"><div><h2>최근 모험 이야기</h2><p>{new Date(latest.completedAt).toLocaleString("ko-KR")}</p></div></div><ul><li>{latest.playerNames.join("와 ")}가 함께 나누어 {latest.completedMissions}개의 작전을 완성했습니다.</li><li>힌트를 {latest.hintCount}회 사용하고 {latest.retryCount}회 다시 시도했습니다.</li><li>{latest.specialSkill}을 사용해 수호자의 약점을 발견했습니다.</li>{latest.thought && <li>오늘의 생각: “{latest.thought}”</li>}</ul></section>}
 
       <section className="safety-note"><strong>개인정보·평가 안전 범위</strong><p>메일에는 문제 원문, 아이의 자유 글, 계정 식별자나 다른 아이와의 순위를 넣지 않고 세션 합계만 보냅니다. 공개 채팅·위치·결제 기능은 없습니다.</p></section>
+      {onlineAccountConnected && <GuardianLearningLogs />}
     </main>
   );
 }

@@ -12,6 +12,7 @@ export const GAME_POC_QUESTIONS: LearningBattleQuestion[] = [
     difficulty: "core",
     skill_reward: 30,
     hint: "12에서 8칸 앞으로 이동해 봐.",
+    wrongAnswerType: "addition-calculation",
   },
   {
     id: "linear-equation-application",
@@ -24,6 +25,7 @@ export const GAME_POC_QUESTIONS: LearningBattleQuestion[] = [
     difficulty: "application",
     skill_reward: 30,
     hint: "먼저 양쪽에서 5를 빼면 길이 보여.",
+    wrongAnswerType: "equation-balance",
   },
   {
     id: "linear-equation-deep",
@@ -36,5 +38,6 @@ export const GAME_POC_QUESTIONS: LearningBattleQuestion[] = [
     difficulty: "deep",
     skill_reward: 40,
     hint: "괄호를 풀기 전에 양쪽을 2로 나누면 간단해져.",
+    wrongAnswerType: "distribution-order",
   },
 ];
