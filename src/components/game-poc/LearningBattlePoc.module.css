@@ -92,6 +92,8 @@
 .feedback { min-height: 66px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; border: 1px solid rgba(105, 210, 232, .22); border-radius: 14px; background: rgba(7, 29, 43, .96); }
 .feedback > span { min-width: 40px; padding: 5px; border-radius: 8px; color: #092337; background: #86e7f6; text-align: center; font-size: 9px; font-weight: 950; }.feedback > div { min-width: 0; }.feedback strong { display: block; color: #fff0a6; font-size: 12px; }.feedback p { margin: 3px 0 0; color: #b9d5dd; font-size: 10px; line-height: 1.45; }
 .feedback.wrong { border-color: rgba(251, 113, 133, .52); }.feedback.correct { border-color: rgba(103, 232, 249, .6); }
+.learningLogCard { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 12px; border: 1px solid rgba(103, 232, 249, .24); border-radius: 12px; background: rgba(7, 23, 36, .78); color: #dff8ff; }
+.learningLogCard strong { color: #67e8f9; }.learningLogCard small { width: 100%; color: #91a9b6; }
 
 .victoryCard { text-align: center; background: radial-gradient(circle at top, rgba(255, 224, 113, .2), transparent 55%), rgba(9, 37, 53, .96); }
 .victoryCard > span { color: #ffe071; font: 900 11px/1 Arial, sans-serif; letter-spacing: .18em; }.victoryCard p { color: #b9d5dd; }

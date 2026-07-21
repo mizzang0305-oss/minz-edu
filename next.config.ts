@@ -50,7 +50,7 @@ const publicFirebaseEnv = Object.fromEntries(
 );
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["127.0.0.1"],
+  allowedDevOrigins: ["127.0.0.1", "192.168.45.120"],
   env: publicFirebaseEnv,
   turbopack: {
     root: process.cwd(),

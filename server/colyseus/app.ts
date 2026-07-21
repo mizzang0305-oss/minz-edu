@@ -4,24 +4,30 @@ import {
   LEARNING_BATTLE_ROOM_NAME,
   LearningBattleRoom,
 } from "./LearningBattleRoom";
+import { readRoomTicketSecret } from "../../src/services/online/roomTicket";
 
 export type LearningBattleServerOptions = {
   host?: string;
   port?: number;
   allowedOrigins?: string[];
   simulatedLatencyMs?: number;
+  roomTicketSecret?: string;
 };
 
 export async function startLearningBattleServer(options: LearningBattleServerOptions = {}) {
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 2567;
+  const roomTicketSecret = options.roomTicketSecret ?? readRoomTicketSecret();
   const restoreCors = configureCors(options.allowedOrigins);
   const server = new Server({
     transport: new WebSocketTransport(),
     gracefullyShutdown: false,
     greet: false,
   });
-  server.define(LEARNING_BATTLE_ROOM_NAME, LearningBattleRoom);
+  class ConfiguredLearningBattleRoom extends LearningBattleRoom {}
+  ConfiguredLearningBattleRoom.roomTicketSecret = roomTicketSecret;
+  ConfiguredLearningBattleRoom.consumedTicketIds = new Map();
+  server.define(LEARNING_BATTLE_ROOM_NAME, ConfiguredLearningBattleRoom);
 
   try {
     await server.listen(port, host);

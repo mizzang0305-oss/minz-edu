@@ -3,6 +3,7 @@ import {
   allowChildProfileMutation,
   allowGameStateMutation,
   allowGuardianAuthMutation,
+  allowLearningLogMutation,
   allowRoomMutation,
   resetOnlineMutationRateLimitsForTests,
 } from "./roomRateLimit";
@@ -35,6 +36,14 @@ describe("room mutation rate limit", () => {
     }
     expect(allowGameStateMutation("guardian", 1_000)).toBe(false);
     expect(allowGameStateMutation("guardian", 61_001)).toBe(true);
+  });
+
+  it("allows signed learning-log updates but caps a runaway client", () => {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      expect(allowLearningLogMutation("guardian", 1_000)).toBe(true);
+    }
+    expect(allowLearningLogMutation("guardian", 1_000)).toBe(false);
+    expect(allowLearningLogMutation("guardian", 61_001)).toBe(true);
   });
 
   it("fails closed instead of growing memory past the bucket limit", () => {

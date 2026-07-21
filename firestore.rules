@@ -86,6 +86,12 @@ service cloud.firestore {
         match /gameState/{documentId} {
           allow read, write: if false;
         }
+
+        // Detailed learning logs are available only through the guardian API.
+        // The Admin SDK verifies the Colyseus receipt and child ownership.
+        match /learningLogs/{documentId} {
+          allow read, write: if false;
+        }
       }
 
       match /friendApprovals/{approvalId} {

@@ -9,6 +9,8 @@ import type {
   ColyseusLearningClientMessages,
   ColyseusLearningRoomState,
   ColyseusLearningServerMessages,
+  LearningPlayerSessionLog,
+  LearningQuestionLog,
   LearningBattlePocState,
 } from "@/types/learningBattlePoc";
 
@@ -17,6 +19,7 @@ const MAX_ANSWER_LENGTH = 64;
 
 type Seat = {
   sessionId?: string;
+  identityKey?: string;
   playerId: string;
   connected: boolean;
   lastClientSequence: number;
@@ -36,8 +39,13 @@ export class LearningRoomAuthority {
   private battle: LearningBattlePocState = createLearningBattlePocState("local-coop");
   private revision = 0;
   private readonly seats: Seat[];
+  private readonly questionLogs = new Map<string, LearningQuestionLog[]>();
+  private questionStartedAt: number | null = null;
 
-  constructor(private readonly roomId: string) {
+  constructor(
+    private readonly roomId: string,
+    private readonly now: () => number = Date.now,
+  ) {
     this.seats = this.battle.players.map((player) => ({
       playerId: player.id,
       connected: false,
@@ -45,8 +53,15 @@ export class LearningRoomAuthority {
     }));
   }
 
-  join(sessionId: string, rawDisplayName: unknown) {
+  join(sessionId: string, rawDisplayName: unknown, identityKey?: string) {
     const existingSeatIndex = this.seats.findIndex((seat) => seat.sessionId === sessionId);
+    if (
+      existingSeatIndex < 0
+      && identityKey
+      && this.seats.some((seat) => seat.identityKey === identityKey)
+    ) {
+      throw new LearningRoomActionError("IDENTITY_IN_USE", "같은 보호자 세션으로 두 자리를 사용할 수 없어.");
+    }
     const seatIndex = existingSeatIndex >= 0
       ? existingSeatIndex
       : this.seats.findIndex((seat) => seat.sessionId === undefined);
@@ -61,6 +76,10 @@ export class LearningRoomAuthority {
       || !seat.connected
       || this.battle.players[seatIndex].displayName !== displayName;
 
+    if (existingSeatIndex < 0) {
+      this.questionLogs.set(seat.playerId, []);
+      seat.identityKey = identityKey;
+    }
     seat.sessionId = sessionId;
     seat.connected = true;
     if (existingSeatIndex < 0) seat.lastClientSequence = -1;
@@ -70,6 +89,9 @@ export class LearningRoomAuthority {
         ? { ...player, displayName }
         : player),
     };
+    if (this.connectedSeatCount() === 2 && this.questionStartedAt === null) {
+      this.questionStartedAt = this.now();
+    }
     if (changed) this.revision += 1;
 
     return { playerId: seat.playerId, playerIndex: seatIndex };
@@ -96,6 +118,7 @@ export class LearningRoomAuthority {
     const seat = this.seats.find((candidate) => candidate.sessionId === sessionId);
     if (!seat) return;
     seat.sessionId = undefined;
+    seat.identityKey = undefined;
     seat.connected = false;
     seat.lastClientSequence = -1;
     this.revision += 1;
@@ -120,12 +143,14 @@ export class LearningRoomAuthority {
     this.consumeSequence(seat, payload.clientSequence);
     const previousCorrectCount = this.battle.correctCount;
     this.battle = submitLearningBattleAnswer(this.battle, payload.answer);
+    const correct = this.battle.correctCount > previousCorrectCount;
+    this.recordAttempt(seat.playerId, question.id, question.wrongAnswerType, correct);
     this.revision += 1;
     return {
       playerId: seat.playerId,
       playerIndex,
       questionId: question.id,
-      correct: this.battle.correctCount > previousCorrectCount,
+      correct,
       revision: this.revision,
     };
   }
@@ -149,6 +174,7 @@ export class LearningRoomAuthority {
     this.consumeSequence(seat, payload.clientSequence);
     const previousBossHp = this.battle.bossHp;
     this.battle = resolveLearningBattleAttack(this.battle, payload.charged);
+    this.questionStartedAt = this.battle.phase === "question" ? this.now() : null;
     this.revision += 1;
     return {
       playerId: seat.playerId,
@@ -202,6 +228,19 @@ export class LearningRoomAuthority {
     return this.requireSeat(sessionId).playerId;
   }
 
+  getLearningLog(sessionId: string): LearningPlayerSessionLog {
+    const playerId = this.requireSeat(sessionId).playerId;
+    const questionLogs = structuredClone(this.questionLogs.get(playerId) ?? []);
+    return {
+      roomId: this.roomId,
+      playerId,
+      questionLogs,
+      totalAttempts: questionLogs.reduce((sum, log) => sum + log.attemptCount, 0),
+      totalHints: questionLogs.reduce((sum, log) => sum + log.hintCount, 0),
+      totalElapsedMs: questionLogs.reduce((sum, log) => sum + log.elapsedMs, 0),
+    };
+  }
+
   private requireActiveSeat(sessionId: string, claimedPlayerId: unknown, clientSequence: unknown) {
     this.requireReadyRoom();
     const seat = this.requireSeat(sessionId);
@@ -235,6 +274,50 @@ export class LearningRoomAuthority {
 
   private consumeSequence(seat: Seat, clientSequence: number) {
     seat.lastClientSequence = clientSequence;
+  }
+
+  private connectedSeatCount() {
+    return this.seats.filter((seat) => seat.connected).length;
+  }
+
+  private recordAttempt(
+    playerId: string,
+    questionId: string,
+    wrongAnswerType: LearningQuestionLog["attempts"][number]["wrongAnswerType"],
+    correct: boolean,
+  ) {
+    const logs = this.questionLogs.get(playerId) ?? [];
+    let log = logs.find((candidate) => candidate.questionId === questionId && !candidate.completed);
+    if (!log) {
+      log = {
+        questionId,
+        playerId,
+        attemptCount: 0,
+        hintCount: 0,
+        elapsedMs: 0,
+        completed: false,
+        wrongAnswerTypes: {},
+        attempts: [],
+      };
+      logs.push(log);
+      this.questionLogs.set(playerId, logs);
+    }
+
+    const elapsedMs = Math.max(0, Math.round(this.now() - (this.questionStartedAt ?? this.now())));
+    log.attemptCount += 1;
+    log.elapsedMs = elapsedMs;
+    log.completed = correct;
+    if (!correct && wrongAnswerType) {
+      log.hintCount += 1;
+      log.wrongAnswerTypes[wrongAnswerType] = (log.wrongAnswerTypes[wrongAnswerType] ?? 0) + 1;
+    }
+    log.attempts.push({
+      attemptNumber: log.attemptCount,
+      correct,
+      elapsedMs,
+      hintProvided: !correct,
+      ...(!correct && wrongAnswerType ? { wrongAnswerType } : {}),
+    });
   }
 }
 

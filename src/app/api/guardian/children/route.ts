@@ -60,7 +60,6 @@ export async function DELETE(request: Request) {
     const guardianRef = firestore.collection("guardians").doc(guardian.uid);
     const childRef = guardianRef.collection("children").doc(input.childProfileId);
     const primaryRef = guardianRef.collection("children").doc("primary");
-    const gameStateRef = childRef.collection("gameState").doc("current");
     const result = await firestore.runTransaction(async (transaction) => {
       const [child, primary] = await Promise.all([
         transaction.get(childRef),
@@ -68,16 +67,6 @@ export async function DELETE(request: Request) {
       ]);
       if (!child.exists) return "not-found" as const;
       if (!primary.exists) return "last-child" as const;
-      transaction.delete(gameStateRef);
-      transaction.delete(childRef);
-      transaction.set(
-        guardianRef,
-        {
-          childProfileIds: FieldValue.arrayRemove(input.childProfileId),
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true },
-      );
       return "deleted" as const;
     });
     if (result === "not-found") {
@@ -86,6 +75,14 @@ export async function DELETE(request: Request) {
     if (result === "last-child") {
       return Response.json({ error: "기본 모험가를 먼저 복구해 주세요." }, { status: 409, headers: noStoreHeaders });
     }
+    await firestore.recursiveDelete(childRef);
+    await guardianRef.set(
+      {
+        childProfileIds: FieldValue.arrayRemove(input.childProfileId),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
     return Response.json({ deletedChildProfileId: input.childProfileId }, { headers: noStoreHeaders });
   } catch {
     return Response.json({ error: "모험가 기록을 정리하지 못했습니다." }, { status: 503, headers: noStoreHeaders });

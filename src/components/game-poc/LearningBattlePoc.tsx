@@ -21,9 +21,12 @@ import {
 import type { BossAttackSignal, CoopBattleState, PlayerAttackSignal } from "@/types/battle";
 import type {
   ColyseusLearningServerMessages,
+  LearningPlayerSessionLog,
   LearningBattleMode,
   LearningBattlePocState,
 } from "@/types/learningBattlePoc";
+import { getActiveChildProfileId } from "@/stores/storage";
+import { persistSignedLearningLog } from "@/services/online/learningLogClient";
 import styles from "./LearningBattlePoc.module.css";
 
 type PlayMode = LearningBattleMode | "online-coop";
@@ -108,9 +111,9 @@ export function LearningBattlePoc() {
   const [state, setState] = useState(() => createLearningBattlePocState());
   const [playMode, setPlayMode] = useState<PlayMode>("solo");
   const [answer, setAnswer] = useState("");
-  const [displayName, setDisplayName] = useState("민즈");
   const [roomIdInput, setRoomIdInput] = useState("");
   const [online, setOnline] = useState<OnlineUiState>(INITIAL_ONLINE_UI);
+  const [learningLog, setLearningLog] = useState<LearningPlayerSessionLog | null>(null);
   const [attackSignal, setAttackSignal] = useState<PlayerAttackSignal | null>(null);
   const [bossAttackSignal, setBossAttackSignal] = useState<BossAttackSignal | null>(null);
   const [specialSignal, setSpecialSignal] = useState(0);
@@ -142,6 +145,7 @@ export function LearningBattlePoc() {
     setBossAttackSignal(null);
     setSpecialSignal(0);
     setSpecialPlaying(false);
+    setLearningLog(null);
   }
 
   function selectLocalMode(mode: LearningBattleMode) {
@@ -158,9 +162,10 @@ export function LearningBattlePoc() {
     reset("local-coop");
   }
 
-  async function connectOnline(match: "create" | "join-or-create" | "join-by-id") {
+  async function connectOnline(match: "create" | "join-by-id") {
     await onlineClientRef.current?.disconnect();
     setOnline({ ...INITIAL_ONLINE_UI, status: "connecting" });
+    const childProfileId = getActiveChildProfileId();
     const client = new ColyseusLearningClient({
       onAssigned: (payload) => {
         setOnline((current) => ({
@@ -187,6 +192,10 @@ export function LearningBattlePoc() {
         setSpecialSignal((value) => value + 1);
         navigator.vibrate?.([45, 30, 70]);
       },
+      onLearningLog: ({ log, receipt }) => {
+        setLearningLog(log);
+        void persistSignedLearningLog(childProfileId, receipt).catch(() => undefined);
+      },
       onStatus: (status) => setOnline((current) => ({ ...current, status })),
       onError: (message) => {
         setSpecialPlaying(false);
@@ -196,7 +205,7 @@ export function LearningBattlePoc() {
     onlineClientRef.current = client;
     try {
       const connectedRoomId = await client.connect({
-        displayName,
+        childProfileId,
         match,
         roomId: roomIdInput,
       });
@@ -385,13 +394,9 @@ export function LearningBattlePoc() {
               <span>ONLINE CO-OP</span>
               <h1>친구와 각자 화면에서 결계전</h1>
               <p>한 명이 방을 만들고, 친구가 표시된 방 ID로 참가하면 전투가 시작돼.</p>
-              <label>
-                캐릭터 이름
-                <input value={displayName} maxLength={12} onChange={(event) => setDisplayName(event.target.value)} />
-              </label>
+              <p>보호자 로그인과 현재 선택된 자녀 프로필을 확인한 뒤 90초 room ticket으로 연결해.</p>
               <div className={styles.onlineActions}>
                 <button type="button" onClick={() => void connectOnline("create")}>새 방 만들기</button>
-                <button type="button" onClick={() => void connectOnline("join-or-create")}>빠른 매칭</button>
               </div>
               <div className={styles.roomJoinRow}>
                 <input
@@ -493,6 +498,13 @@ export function LearningBattlePoc() {
               <p>{playMode === "online-coop" && online.roomId ? `방 ${online.roomId} · ${state.feedback.detail}` : state.feedback.detail}</p>
             </div>
           </div>
+          {playMode === "online-coop" && learningLog && (
+            <div className={styles.learningLogCard} aria-label="내 문제별 학습 로그">
+              <strong>내 학습 로그</strong>
+              <span>시도 {learningLog.totalAttempts}회 · 힌트 {learningLog.totalHints}회 · {Math.ceil(learningLog.totalElapsedMs / 1_000)}초</span>
+              <small>원답은 저장하지 않고 문제별 시도·오답 유형만 기록해.</small>
+            </div>
+          )}
         </section>
       </div>
     </main>

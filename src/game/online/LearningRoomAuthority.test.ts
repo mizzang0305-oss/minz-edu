@@ -15,6 +15,14 @@ describe("LearningRoomAuthority", () => {
     expect(authority.getSnapshot().connectionStatus).toBe("waiting");
   });
 
+  it("같은 보호자 identity가 두 좌석을 차지하지 못하게 한다", () => {
+    const authority = new LearningRoomAuthority("room-identity");
+    authority.join("session-1", "민즈", "guardian-key-a");
+    expect(() => authority.join("session-2", "다른 이름", "guardian-key-a"))
+      .toThrowError(expect.objectContaining({ code: "IDENTITY_IN_USE" }));
+    expect(authority.getSnapshot().connectionStatus).toBe("waiting");
+  });
+
   it("오답 반격, 정답 공격, 턴 교대, 스페셜을 서버 순서대로 판정한다", () => {
     const authority = readyAuthority();
 
@@ -108,7 +116,7 @@ describe("LearningRoomAuthority", () => {
     })).toThrowError(expect.objectContaining({ code: "STALE_SEQUENCE" }));
   });
 
-  it("10초 재접속 좌석을 위한 drop/reconnect 동안 상태를 보존한다", () => {
+  it("60초 재접속 좌석을 위한 drop/reconnect 동안 상태를 보존한다", () => {
     const authority = readyAuthority();
     authority.resolveAnswer("session-1", {
       playerId: "player-1",
@@ -139,6 +147,46 @@ describe("LearningRoomAuthority", () => {
     snapshot.battle.players[0].hp = 0;
     expect(authority.getSnapshot().battle).toMatchObject({ bossHp: 180 });
     expect(authority.getSnapshot().battle.players[0].hp).toBe(100);
+  });
+
+  it("문제별 시도·자동 힌트·서버 경과 시간·오답 유형을 원답 없이 기록한다", () => {
+    let now = 1_000;
+    const authority = new LearningRoomAuthority("room-log", () => now);
+    authority.join("session-1", "민즈", "guardian-a");
+    authority.join("session-2", "친구", "guardian-b");
+
+    now = 4_000;
+    authority.resolveAnswer("session-1", {
+      playerId: "player-1",
+      questionId: "linear-equation-core",
+      answer: "19",
+      clientSequence: 0,
+    });
+    now = 7_500;
+    authority.resolveAnswer("session-1", {
+      playerId: "player-1",
+      questionId: "linear-equation-core",
+      answer: "20",
+      clientSequence: 1,
+    });
+
+    const log = authority.getLearningLog("session-1");
+    expect(log).toMatchObject({ totalAttempts: 2, totalHints: 1, totalElapsedMs: 6_500 });
+    expect(log.questionLogs[0]).toMatchObject({
+      questionId: "linear-equation-core",
+      attemptCount: 2,
+      hintCount: 1,
+      elapsedMs: 6_500,
+      completed: true,
+      wrongAnswerTypes: { "addition-calculation": 1 },
+      attempts: [
+        { attemptNumber: 1, correct: false, elapsedMs: 3_000, hintProvided: true, wrongAnswerType: "addition-calculation" },
+        { attemptNumber: 2, correct: true, elapsedMs: 6_500, hintProvided: false },
+      ],
+    });
+    expect(JSON.stringify(log)).not.toContain("19");
+    expect(() => authority.getLearningLog("session-2").questionLogs.push(log.questionLogs[0])).not.toThrow();
+    expect(authority.getLearningLog("session-1")).toEqual(log);
   });
 });
 

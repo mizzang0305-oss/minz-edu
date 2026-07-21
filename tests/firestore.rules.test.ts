@@ -146,6 +146,19 @@ describe("Firestore guardian boundaries", () => {
     await assertFails(getDoc(siblingStateRef));
     await assertFails(setDoc(siblingStateRef, { revision: 1, state: {} }));
   });
+
+  it("blocks direct client access to guardian learning-log documents", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "guardians/guardian-a/children/primary/learningLogs/room-a_player-1"), {
+        schemaVersion: 1,
+        log: { totalAttempts: 1 },
+      });
+    });
+    const ownerDb = testEnv.authenticatedContext("guardian-a").firestore();
+    const logRef = doc(ownerDb, "guardians/guardian-a/children/primary/learningLogs/room-a_player-1");
+    await assertFails(getDoc(logRef));
+    await assertFails(setDoc(logRef, { revision: 999 }, { merge: true }));
+  });
 });
 
 describe("Firestore authoritative room boundaries", () => {

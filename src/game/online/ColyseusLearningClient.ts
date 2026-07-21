@@ -19,15 +19,16 @@ export type LearningRoomClientEvents = {
   onAnswer?: (payload: ColyseusLearningServerMessages["answer:resolved"]) => void;
   onAttack?: (payload: ColyseusLearningServerMessages["attack:resolved"]) => void;
   onSpecial?: (payload: ColyseusLearningServerMessages["special:resolved"]) => void;
+  onLearningLog?: (payload: ColyseusLearningServerMessages["learning:log"]) => void;
   onStatus?: (status: LearningRoomClientStatus) => void;
   onError?: (message: string, code?: string | number) => void;
 };
 
 type ConnectOptions = {
   endpoint?: string;
-  displayName: string;
+  childProfileId: string;
   roomId?: string;
-  match?: "create" | "join-or-create" | "join-by-id";
+  match: "create" | "join-by-id";
 };
 
 export class ColyseusLearningClient {
@@ -43,17 +44,26 @@ export class ColyseusLearningClient {
     this.events.onStatus?.("connecting");
     const endpoint = options.endpoint ?? process.env.NEXT_PUBLIC_COLYSEUS_URL ?? "http://127.0.0.1:2567";
     const client = new Client(endpoint);
-    const joinOptions = { displayName: options.displayName };
 
     try {
+      const roomId = options.match === "join-by-id" ? requireRoomId(options.roomId) : undefined;
+      const ticket = await requestRoomTicket(
+        options.match === "create" ? "create" : "join",
+        options.childProfileId,
+        roomId,
+      );
+      client.auth.token = ticket.ticket;
+      const joinOptions = {
+        ticketId: ticket.ticketId,
+        ticketIntent: options.match === "create" ? "create" as const : "join" as const,
+        ...(roomId ? { roomId } : {}),
+      };
       const room = options.match === "create"
         ? await client.create("learning_battle", joinOptions)
-        : options.match === "join-by-id"
-          ? await client.joinById(requireRoomId(options.roomId), joinOptions)
-          : await client.joinOrCreate("learning_battle", joinOptions);
+        : await client.joinById(roomId!, joinOptions);
       this.room = room;
-      this.bindRoom(room, options.displayName);
-      room.send("player:join", { displayName: options.displayName } satisfies ColyseusLearningClientMessages["player:join"]);
+      this.bindRoom(room);
+      room.send("player:join", {} satisfies ColyseusLearningClientMessages["player:join"]);
       return room.roomId;
     } catch (error) {
       this.events.onStatus?.("error");
@@ -85,11 +95,11 @@ export class ColyseusLearningClient {
     this.leaving = false;
   }
 
-  private bindRoom(room: Room, displayName: string) {
+  private bindRoom(room: Room) {
     room.reconnection.minUptime = 0;
     room.reconnection.minDelay = 100;
     room.reconnection.maxDelay = 1_000;
-    room.reconnection.maxRetries = 12;
+    room.reconnection.maxRetries = 65;
 
     room.onMessage("player:assigned", (payload: ColyseusLearningServerMessages["player:assigned"]) => {
       this.playerId = payload.playerId;
@@ -108,13 +118,16 @@ export class ColyseusLearningClient {
     room.onMessage("special:resolved", (payload: ColyseusLearningServerMessages["special:resolved"]) => {
       this.events.onSpecial?.(payload);
     });
+    room.onMessage("learning:log", (payload: ColyseusLearningServerMessages["learning:log"]) => {
+      this.events.onLearningLog?.(payload);
+    });
     room.onMessage("room:error", (payload: ColyseusLearningServerMessages["room:error"]) => {
       this.events.onError?.(payload.message, payload.code);
     });
     room.onDrop(() => this.events.onStatus?.("reconnecting"));
     room.onReconnect(() => {
       this.events.onStatus?.("waiting");
-      room.send("player:join", { displayName } satisfies ColyseusLearningClientMessages["player:join"]);
+      room.send("player:join", {} satisfies ColyseusLearningClientMessages["player:join"]);
     });
     room.onError((code, message) => this.events.onError?.(message || "협동 서버 연결 오류가 발생했어.", code));
     room.onLeave(() => {
@@ -142,6 +155,50 @@ export class ColyseusLearningClient {
       clientSequence: this.clientSequence,
     });
   }
+}
+
+type RoomTicketResponse = {
+  ticket: string;
+  ticketId: string;
+};
+
+async function requestRoomTicket(intent: "create" | "join", childProfileId: string, roomId?: string) {
+  const csrfResponse = await fetch("/api/auth/csrf", {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+  const csrfBody = await readJson(csrfResponse);
+  if (!csrfResponse.ok || typeof csrfBody.csrfToken !== "string") {
+    throw new Error(readError(csrfBody, "보안 확인을 준비하지 못했습니다."));
+  }
+
+  const response = await fetch("/api/colyseus/room-ticket", {
+    method: "POST",
+    cache: "no-store",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ childProfileId, csrfToken: csrfBody.csrfToken, intent, ...(roomId ? { roomId } : {}) }),
+  });
+  const body = await readJson(response);
+  if (!response.ok || typeof body.ticket !== "string" || typeof body.ticketId !== "string") {
+    throw new Error(readError(body, "온라인 방 연결권을 만들지 못했습니다."));
+  }
+  return body as RoomTicketResponse;
+}
+
+async function readJson(response: Response): Promise<Record<string, unknown>> {
+  try {
+    const value: unknown = await response.json();
+    return typeof value === "object" && value !== null && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function readError(value: Record<string, unknown>, fallback: string) {
+  return typeof value.error === "string" && value.error.trim() ? value.error : fallback;
 }
 
 function requireRoomId(roomId: string | undefined) {

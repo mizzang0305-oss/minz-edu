@@ -1,5 +1,10 @@
 export type LearningDifficulty = "core" | "application" | "deep";
 
+export type LearningWrongAnswerType =
+  | "addition-calculation"
+  | "equation-balance"
+  | "distribution-order";
+
 export type LearningBattleQuestion = {
   id: string;
   grade: number;
@@ -11,6 +16,45 @@ export type LearningBattleQuestion = {
   difficulty: LearningDifficulty;
   skill_reward: number;
   hint: string;
+  wrongAnswerType: LearningWrongAnswerType;
+};
+
+export type LearningQuestionAttemptLog = {
+  attemptNumber: number;
+  correct: boolean;
+  elapsedMs: number;
+  hintProvided: boolean;
+  wrongAnswerType?: LearningWrongAnswerType;
+};
+
+export type LearningQuestionLog = {
+  questionId: string;
+  playerId: string;
+  attemptCount: number;
+  hintCount: number;
+  elapsedMs: number;
+  completed: boolean;
+  wrongAnswerTypes: Partial<Record<LearningWrongAnswerType, number>>;
+  attempts: LearningQuestionAttemptLog[];
+};
+
+export type LearningPlayerSessionLog = {
+  roomId: string;
+  playerId: string;
+  questionLogs: LearningQuestionLog[];
+  totalAttempts: number;
+  totalHints: number;
+  totalElapsedMs: number;
+};
+
+export type StoredLearningLogView = {
+  id: string;
+  roomId: string;
+  playerId: string;
+  revision: number;
+  log: LearningPlayerSessionLog;
+  updatedAt: string;
+  expiresAt: string;
 };
 
 export type LearningBattleMode = "solo" | "local-coop";
@@ -54,7 +98,7 @@ export type ColyseusLearningRoomState = {
 };
 
 export type ColyseusLearningClientMessages = {
-  "player:join": { displayName: string };
+  "player:join": Record<string, never>;
   "answer:submit": { playerId: string; questionId: string; answer: string; clientSequence: number };
   "attack:request": { playerId: string; questionId: string; charged: boolean; clientSequence: number };
   "special:request": { playerId: string; clientSequence: number };
@@ -66,6 +110,7 @@ export type ColyseusLearningServerMessages = {
   "answer:resolved": { playerId: string; playerIndex: number; questionId: string; correct: boolean; revision: number };
   "attack:resolved": { playerId: string; playerIndex: number; charged: boolean; damage: number; bossHp: number; revision: number };
   "special:resolved": { playerIds: string[]; damage: number; bossHp: number; revision: number };
+  "learning:log": { log: LearningPlayerSessionLog; receipt: string };
   "room:error": { code: string; message: string };
 };
 
